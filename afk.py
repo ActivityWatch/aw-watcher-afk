@@ -7,7 +7,7 @@ from pykeyboard import PyKeyboard, PyKeyboardEvent
 from pymouse import PyMouse, PyMouseEvent
 
 settings = {
-    "timeout": 5
+    "timeout": 300
 }
 
 
