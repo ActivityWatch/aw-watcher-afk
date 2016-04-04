@@ -12,6 +12,8 @@ settings = {
     "check_interval": 1
 }
 
+logger = logging.getLogger("afkwatcher")
+
 
 def main():
     mouse = PyMouse()
@@ -34,7 +36,7 @@ def main():
     if platform.system() != "Darwin":
         KeyboardListener(keyboard_activity_event).start()
     else:
-        logging.warning("KeyboardListener is broken in OS X, will not use for detecting AFK state.")
+        logger.warning("KeyboardListener is broken in OS X, will not use for detecting AFK state.")
     MouseListener(mouse_activity_event).start()
 
     while True:
@@ -45,7 +47,7 @@ def main():
             now = datetime.now()
             if is_afk:
                 # If previously AFK, keyboard/mouse activity now indicates the user isn't AFK
-                print("No longer AFK")
+                logger.info("No longer AFK")
                 is_afk = False
             last_activity = now
             keyboard_activity_event.clear()
@@ -57,7 +59,7 @@ def main():
             passed_time = now - last_activity
             passed_afk = passed_time > timedelta(seconds=settings["timeout"])
             if passed_afk:
-                print("Now AFK")
+                logger.info("Now AFK")
                 is_afk = True
 
 
@@ -85,4 +87,5 @@ class MouseListener(PyMouseEvent):
         self.mouse_activity_event.set()
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     main()
