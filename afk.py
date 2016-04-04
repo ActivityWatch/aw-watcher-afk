@@ -1,31 +1,16 @@
 import logging
 import platform
 from datetime import datetime, timedelta
+from time import sleep
 from threading import Event, Thread
 
 from pykeyboard import PyKeyboard, PyKeyboardEvent
 from pymouse import PyMouse, PyMouseEvent
 
 settings = {
-    "timeout": 300
+    "timeout": 1,
+    "check_interval": 1
 }
-
-
-def _repeat_trigger(waiter: Event, trigger: Event, timeout):
-    if waiter.wait(timeout+1):
-        trigger.set()
-
-
-def _wait_for_either(a: Event, b: Event, timeout=None):
-    """Waits for any one of two events to happen"""
-    # TODO: Reuse threads, don't recreate
-    trigger = Event()
-    ta = Thread(target=_repeat_trigger, args=(a, trigger, timeout))
-    tb = Thread(target=_repeat_trigger, args=(b, trigger, timeout))
-    ta.start()
-    tb.start()
-    # Now do the union waiting
-    return trigger.wait(timeout)
 
 
 def main():
@@ -53,7 +38,8 @@ def main():
     MouseListener(mouse_activity_event).start()
 
     while True:
-        if _wait_for_either(keyboard_activity_event, mouse_activity_event, timeout=1):
+        sleep(settings["check_interval"])
+        if mouse_activity_event.is_set() or keyboard_activity_event.is_set():
             # Check if there has been any activity on the mouse or keyboard and if so,
             # update last_activity to now and set is_afk to False if previously AFK
             now = datetime.now()
