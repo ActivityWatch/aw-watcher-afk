@@ -8,7 +8,7 @@ from pykeyboard import PyKeyboard, PyKeyboardEvent
 from pymouse import PyMouse, PyMouseEvent
 
 settings = {
-    "timeout": 1,
+    "timeout": 300,
     "check_interval": 1
 }
 
@@ -39,28 +39,36 @@ def main():
         logger.warning("KeyboardListener is broken in OS X, will not use for detecting AFK state.")
     MouseListener(mouse_activity_event).start()
 
+    logger.info("afkwatcher started")
     while True:
-        sleep(settings["check_interval"])
-        if mouse_activity_event.is_set() or keyboard_activity_event.is_set():
-            # Check if there has been any activity on the mouse or keyboard and if so,
-            # update last_activity to now and set is_afk to False if previously AFK
-            now = datetime.now()
-            if is_afk:
-                # If previously AFK, keyboard/mouse activity now indicates the user isn't AFK
-                logger.info("No longer AFK")
-                is_afk = False
-            last_activity = now
-            keyboard_activity_event.clear()
-            mouse_activity_event.clear()
+        try:
+            sleep(settings["check_interval"])
+            if mouse_activity_event.is_set() or keyboard_activity_event.is_set():
+                # Check if there has been any activity on the mouse or keyboard and if so,
+                # update last_activity to now and set is_afk to False if previously AFK
+                now = datetime.now()
+                if is_afk:
+                    # If previously AFK, keyboard/mouse activity now indicates the user isn't AFK
+                    logger.info("No longer AFK")
+                    is_afk = False
+                last_activity = now
+                keyboard_activity_event.clear()
+                mouse_activity_event.clear()
 
-        if not is_afk:
-            # If not previously AFK, check if enough time has passed for it to now count as AFK
-            now = datetime.now()
-            passed_time = now - last_activity
-            passed_afk = passed_time > timedelta(seconds=settings["timeout"])
-            if passed_afk:
-                logger.info("Now AFK")
-                is_afk = True
+            if not is_afk:
+                # If not previously AFK, check if enough time has passed for it to now count as AFK
+                now = datetime.now()
+                passed_time = now - last_activity
+                passed_afk = passed_time > timedelta(seconds=settings["timeout"])
+                if passed_afk:
+                    logger.info("Now AFK")
+                    is_afk = True
+        except KeyboardInterrupt:
+            logger.info("afkwatcher stopped by keyboard interrupt")
+            break
+        except Exception as e:
+            logger.warning("afkwatcher stopped by unexpected exception")
+            break
 
 
 class KeyboardListener(PyKeyboardEvent):
