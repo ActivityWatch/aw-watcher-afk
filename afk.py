@@ -94,13 +94,17 @@ class KeyboardListener(PyKeyboardEvent):
     def __init__(self):
         PyKeyboardEvent.__init__(self)
         self.logger = logging.getLogger("afkwatcher.keyboard")
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.INFO)
         self.activity_event = Event()
 
     def tap(self, keycode, character, press):
         #logging.debug("Clicked keycode: {}".format(keycode))
         self.logger.debug("Input received: {}, {}, {}".format(keycode, character, press))
         self.activity_event.set()
+
+    def escape(self, event):
+        # Always returns False so that listening is never stopped
+        return False
 
     def has_new_activity(self):
         answer = self.activity_event.is_set()
@@ -112,7 +116,7 @@ class MouseListener(PyMouseEvent):
     def __init__(self):
         PyMouseEvent.__init__(self)
         self.logger = logging.getLogger("afkwatcher.mouse")
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.INFO)
         self.activity_event = Event()
 
     def click(self, x, y, button, press):
