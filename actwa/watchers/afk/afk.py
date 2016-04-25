@@ -12,30 +12,34 @@ import requests
 from pykeyboard import PyKeyboard, PyKeyboardEvent
 from pymouse import PyMouse, PyMouseEvent
 
+from actwa.client import ActivityWatchClient
+
+
 settings = {
-    "timeout": 30,
+    "timeout": 60,
     "check_interval": 1,
     "server_enabled": True,
-    "server_hostname": "localhost",
-    "server_port": "5000",
-    "client_hostname": socket.gethostname()
+    "desktop_notify": True,
 }
 
 logger = logging.getLogger("afkwatcher")
 logger.setLevel(logging.DEBUG)
 
-# Mute requests logging output, unless serious
-logging.getLogger("requests").setLevel(logging.WARNING)
+if settings["desktop_notify"]:
+    from gi.repository import Notify
+    Notify.init("afkwatcher")
 
-
-def store_event(event):
-    headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
-    url = "http://{}:{}/api/0/activity/afkwatcher".format(settings["server_hostname"], settings["server_port"])
-    requests.post(url, data=json.dumps(event), headers=headers)
-    logger.debug("Sent event to server: {}".format(event))
+def send_notification(msg):
+    if settings["desktop_notify"]:
+        # Can crash the application if the notification daemon disappears
+        n = Notify.Notification.new("AFK state changed", msg)
+        n.show()
 
 
 def main():
+    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    client = ActivityWatchClient("afkwatcher")
+
     now = datetime.now()
     last_activity = now
     is_afk = True
@@ -51,8 +55,7 @@ def main():
         logger.warning("KeyboardListener is broken in OS X, will not use for detecting AFK state.")
 
     logger.info("afkwatcher started")
-    if settings["server_enabled"]:
-        store_event({"label": "afkwatcher-started", "settings": settings})
+    client.send_event({"label": "afkwatcher-started", "settings": settings})
 
     while True:
         try:
@@ -62,11 +65,14 @@ def main():
                 # update last_activity to now and set is_afk to False if previously AFK
                 now = datetime.now()
                 if is_afk:
+                    # No longer AFK
                     # If AFK, keyboard/mouse activity indicates the user is no longer AFK
                     logger.info("No longer AFK")
-                    if settings["server_enabled"]:
-                        # Store event with the ended AFK period
-                        store_event({"label": "afk", "timestamp": now.isoformat()})
+                    send_notification("No longer AFK")
+
+                    # Store event with the ended AFK period
+                    client.send_event({"label": "afk", "timestamp": now.isoformat()})
+
                     is_afk = False
                 last_activity = now
             if not is_afk:
@@ -75,18 +81,21 @@ def main():
                 passed_time = now - last_activity
                 passed_afk = passed_time > timedelta(seconds=settings["timeout"])
                 if passed_afk:
+                    # Now AFK
                     logger.info("Now AFK")
-                    if settings["server_enabled"]:
-                        # Store event with the ended non-AFK period
-                        store_event({"label": "not-afk", "timestamp": last_activity.isoformat()})
+                    send_notification("Now AFK")
+
+                    # Store event with the ended non-AFK period
+                    client.send_event({"label": "not-afk", "timestamp": last_activity.isoformat()})
+
                     is_afk = True
         except KeyboardInterrupt:
             logger.info("afkwatcher stopped by keyboard interrupt")
-            store_event({"label": "afkwatcher-stopped"})
+            client.send_event({"label": "afkwatcher-stopped"})
             break
         except Exception as e:
             logger.warning("afkwatcher stopped by unexpected exception")
-            store_event({"label": "afkwatcher-stopped", "note": str(e)})
+            client.send_event({"label": "afkwatcher-stopped", "note": str(e)})
             break
 
 

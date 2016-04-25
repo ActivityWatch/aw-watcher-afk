@@ -1,0 +1,1 @@
+from .afk import main
