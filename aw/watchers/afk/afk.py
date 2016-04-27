@@ -12,7 +12,7 @@ import requests
 from pykeyboard import PyKeyboard, PyKeyboardEvent
 from pymouse import PyMouse, PyMouseEvent
 
-from actwa.client import ActivityWatchClient
+from aw.client import ActivityWatchClient
 
 
 settings = {
@@ -22,7 +22,7 @@ settings = {
     "desktop_notify": True,
 }
 
-logger = logging.getLogger("afkwatcher")
+logger = logging.getLogger("aw-watcher-afk")
 logger.setLevel(logging.DEBUG)
 
 if settings["desktop_notify"]:
@@ -57,38 +57,46 @@ def main():
     logger.info("afkwatcher started")
     client.send_event({"label": "afkwatcher-started", "settings": settings})
 
+    def change_to_afk(time: datetime):
+        # End not-afk period
+        client.send_event({"label": "not-afk", "timestamp": time.isoformat()})
+        logger.info("Now AFK")
+        send_notification("Now AFK")
+        is_afk = True
+
+    def change_to_not_afk():
+        client.send_event({"label": "afk", "timestamp": now.isoformat()})
+        logger.info("No longer AFK")
+        send_notification("No longer AFK")
+        is_afk = False
+
     while True:
+        # FIXME: Doesn't work if computer is put to sleep since state is unlikely to be
+        #        in is_afk when sleep is initiated by the user.
         try:
             sleep(settings["check_interval"])
+            now = datetime.now()
             if mouseListener.has_new_activity() or keyboardListener.has_new_activity():
                 # Check if there has been any activity on the mouse or keyboard and if so,
                 # update last_activity to now and set is_afk to False if previously AFK
-                now = datetime.now()
                 if is_afk:
                     # No longer AFK
                     # If AFK, keyboard/mouse activity indicates the user is no longer AFK
-                    logger.info("No longer AFK")
-                    send_notification("No longer AFK")
-
-                    # Store event with the ended AFK period
-                    client.send_event({"label": "afk", "timestamp": now.isoformat()})
-
-                    is_afk = False
+                    change_to_not_afk(now)
+                elif now - last_activity > timedelta(seconds=settings["timeout"]):
+                    # is_afk=False, but loop has been interrupted so user might actually be afk
+                    # Took longer than `timeout` since last loop, computer likely put to sleep
+                    change_to_afk(time=last_activity)
+                    change_to_not_afk(time=now)
                 last_activity = now
             if not is_afk:
                 # If not previously AFK, check if enough time has passed for it to now count as AFK
-                now = datetime.now()
                 passed_time = now - last_activity
                 passed_afk = passed_time > timedelta(seconds=settings["timeout"])
                 if passed_afk:
                     # Now AFK
-                    logger.info("Now AFK")
-                    send_notification("Now AFK")
-
                     # Store event with the ended non-AFK period
-                    client.send_event({"label": "not-afk", "timestamp": last_activity.isoformat()})
-
-                    is_afk = True
+                    change_to_afk(last_activity)
         except KeyboardInterrupt:
             logger.info("afkwatcher stopped by keyboard interrupt")
             client.send_event({"label": "afkwatcher-stopped"})
