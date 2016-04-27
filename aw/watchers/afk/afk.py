@@ -57,17 +57,20 @@ def main():
     logger.info("afkwatcher started")
     client.send_event({"label": "afkwatcher-started", "settings": settings})
 
-    def change_to_afk(time: datetime):
-        # End not-afk period
-        client.send_event({"label": "not-afk", "timestamp": time.isoformat()})
+    def change_to_afk(dt: datetime):
+        # This function should be called User is now AFK
+        client.send_event({"label": "not-afk", "timestamp": dt.isoformat()})
         logger.info("Now AFK")
         send_notification("Now AFK")
+        nonlocal is_afk
         is_afk = True
 
-    def change_to_not_afk():
-        client.send_event({"label": "afk", "timestamp": now.isoformat()})
+    def change_to_not_afk(dt: datetime):
+        # This function should be called when user is no longer AFK
+        client.send_event({"label": "afk", "timestamp": dt.isoformat()})
         logger.info("No longer AFK")
         send_notification("No longer AFK")
+        nonlocal is_afk
         is_afk = False
 
     while True:
@@ -86,17 +89,18 @@ def main():
                 elif now - last_activity > timedelta(seconds=settings["timeout"]):
                     # is_afk=False, but loop has been interrupted so user might actually be afk
                     # Took longer than `timeout` since last loop, computer likely put to sleep
-                    change_to_afk(time=last_activity)
-                    change_to_not_afk(time=now)
+                    change_to_afk(dt=last_activity)
+                    change_to_not_afk(dt=now)
                 last_activity = now
             if not is_afk:
-                # If not previously AFK, check if enough time has passed for it to now count as AFK
+                # If not previously AFK, check if enough time has passed for user to now be considered AFK
                 passed_time = now - last_activity
                 passed_afk = passed_time > timedelta(seconds=settings["timeout"])
                 if passed_afk:
                     # Now AFK
                     # Store event with the ended non-AFK period
-                    change_to_afk(last_activity)
+                    change_to_afk(dt=last_activity)
+
         except KeyboardInterrupt:
             logger.info("afkwatcher stopped by keyboard interrupt")
             client.send_event({"label": "afkwatcher-stopped"})
