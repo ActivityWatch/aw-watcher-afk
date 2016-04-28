@@ -58,7 +58,9 @@ def main():
     client.send_event({"label": "afkwatcher-started", "settings": settings})
 
     def change_to_afk(dt: datetime):
-        # This function should be called User is now AFK
+        # This function should be called when user becomes AFK
+        # The argument dt should be the time when the last activity was detected,
+        # which should be: change_to_afk(dt=last_activity)
         client.send_event({"label": "not-afk", "timestamp": dt.isoformat()})
         logger.info("Now AFK")
         send_notification("Now AFK")
@@ -67,6 +69,8 @@ def main():
 
     def change_to_not_afk(dt: datetime):
         # This function should be called when user is no longer AFK
+        # The argument dt should be the time when the at-keyboard indicating activity was detected,
+        # which should be: change_to_not_afk(dt=now)
         client.send_event({"label": "afk", "timestamp": dt.isoformat()})
         logger.info("No longer AFK")
         send_notification("No longer AFK")
