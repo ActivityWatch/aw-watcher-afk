@@ -2,3 +2,5 @@
 *.swp
 logs
 *.egg-info
+build
+dist
