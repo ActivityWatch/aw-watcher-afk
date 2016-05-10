@@ -29,12 +29,12 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser("A watcher for keyboard and mouse input to detect AFK state")
-    parser.add_argument("--testing", dest="testing", action="store_const", const=True, default=False)
-    parser.add_argument("--desktop-notify", dest="desktop_notify", action="store_const", const=True, default=False)
+    parser.add_argument("--testing", action="store_true")
+    parser.add_argument("--desktop-notify", action="store_true")
 
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    logging.basicConfig(level=logging.DEBUG if args.testing else logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     client = ActivityWatchClient("afkwatcher", testing=args.testing)
 
     if args.desktop_notify:
