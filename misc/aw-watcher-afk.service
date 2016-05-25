@@ -5,7 +5,7 @@ After=aw-server.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/aw-watcher-afk
+ExecStart=/usr/bin/env aw-watcher-afk
 Environment="DISPLAY=:0"
 Restart=always
 KillSignal=SIGINT
