@@ -189,10 +189,9 @@ class MouseListener(PyMouseEvent, EventFactory):
         newpos = (x, y)
         if not self.pos:
             self.pos = newpos
-        else:
-            delta = tuple(abs() for i in range(2))
-            self.event_data["deltaX"] += newpos[0] - self.pos[0]
-            self.event_data["deltaY"] += newpos[1] - self.pos[1]
+        delta = tuple(abs(self.pos[i] - newpos[i]) for i in range(2))
+        self.event_data["deltaX"] += newpos[0] + delta[0]
+        self.event_data["deltaY"] += newpos[1] + delta[1]
         self.logger.debug("Moved mouse to: {},{}".format(x, y))
         self.new_activity.set()
 
