@@ -12,8 +12,8 @@ import requests
 from pykeyboard import PyKeyboard, PyKeyboardEvent
 from pymouse import PyMouse, PyMouseEvent
 
-from aw.core.models import Event
-from aw.client import ActivityWatchClient
+from aw_core.models import Event
+from aw_client import ActivityWatchClient
 
 # TODO: Move to argparse
 settings = {
