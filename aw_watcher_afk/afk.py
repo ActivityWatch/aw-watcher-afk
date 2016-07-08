@@ -62,7 +62,6 @@ def main():
         logger.warning("KeyboardListener is broken in OS X, will not use for detecting AFK state.")
 
     logger.info("afkwatcher started")
-    client.send_event(Event(label="afkwatcher-started", settings=settings))
 
     def change_to_afk(dt: datetime):
         # This function should be called when user becomes AFK
@@ -114,11 +113,9 @@ def main():
 
         except KeyboardInterrupt:
             logger.info("afkwatcher stopped by keyboard interrupt")
-            client.send_event(Event(label="afkwatcher-stopped"))
             break
         except Exception as e:
-            logger.warning("afkwatcher stopped by unexpected exception")
-            client.send_event(Event(label="afkwatcher-stopped", note=str(e)))
+            logger.warning("afkwatcher stopped by unexpected exception:\n{}".format(str(e))
             break
 
 
