@@ -115,7 +115,7 @@ def main():
             logger.info("afkwatcher stopped by keyboard interrupt")
             break
         except Exception as e:
-            logger.warning("afkwatcher stopped by unexpected exception:\n{}".format(str(e))
+            logger.warning("afkwatcher stopped by unexpected exception:\n{}".format(str(e)))
             break
 
 
