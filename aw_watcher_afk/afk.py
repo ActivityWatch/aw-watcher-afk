@@ -17,7 +17,7 @@ from aw_client import ActivityWatchClient
 
 # TODO: Move to argparse
 settings = {
-    "timeout": 60,
+    "timeout": 30,
     "check_interval": 1,
 }
 
@@ -64,9 +64,11 @@ def main():
     logger.info("afkwatcher started")
 
     def change_to_afk(dt: datetime):
-        # This function should be called when user becomes AFK
-        # The argument dt should be the time when the last activity was detected,
-        # which should be: change_to_afk(dt=last_activity)
+        """
+        This function should be called when user becomes AFK
+        The argument dt should be the time when the last activity was detected,
+        which should be: change_to_afk(dt=last_activity)
+        """
         client.send_event(Event(label="not-afk", timestamp=dt))
         logger.info("Now AFK")
         send_notification("Now AFK")
@@ -74,9 +76,11 @@ def main():
         is_afk = True
 
     def change_to_not_afk(dt: datetime):
-        # This function should be called when user is no longer AFK
-        # The argument dt should be the time when the at-keyboard indicating activity was detected,
-        # which should be: change_to_not_afk(dt=now)
+        """
+        This function should be called when user is no longer AFK
+        The argument dt should be the time when the at-keyboard indicating activity was detected,
+        which should be: change_to_not_afk(dt=now)
+        """
         client.send_event(Event(label="afk", timestamp=dt))
         logger.info("No longer AFK")
         send_notification("No longer AFK")
@@ -90,15 +94,28 @@ def main():
             sleep(settings["check_interval"])
             now = datetime.now()
             if mouseListener.has_new_event() or keyboardListener.has_new_event():
-                # Check if there has been any activity on the mouse or keyboard and if so,
-                # update last_activity to now and set is_afk to False if previously AFK
+                """
+                Check if there has been any activity on the mouse or keyboard and if so,
+                update last_activity to now and set is_afk to False if previously AFK
+                """
+                # logger.debug("activity detected")
+                mouse_event = mouseListener.next_event()
+                keyboard_event = keyboardListener.next_event()
+
+                logger.debug(mouse_event)
+                logger.debug(keyboard_event)
+
                 if is_afk:
-                    # No longer AFK
-                    # If AFK, keyboard/mouse activity indicates the user is no longer AFK
+                    """
+                    No longer AFK
+                    If AFK, keyboard/mouse activity indicates the user is no longer AFK
+                    """
                     change_to_not_afk(now)
                 elif now - last_activity > timedelta(seconds=settings["timeout"]):
-                    # is_afk=False, but loop has been interrupted so user might actually be afk
-                    # Took longer than `timeout` since last loop, computer likely put to sleep
+                    """
+                    is_afk=False, but loop has been interrupted so user might actually be afk
+                    Took longer than `timeout` since last loop, computer likely put to sleep
+                    """
                     change_to_afk(dt=last_activity)
                     change_to_not_afk(dt=now)
                 last_activity = now
@@ -125,8 +142,7 @@ class EventFactory:
         raise NotImplementedError
 
     def has_new_event(self):
-        answer = self.new_activity.is_set()
-        return answer
+        raise NotImplementedError
 
 
 class KeyboardListener(PyKeyboardEvent, EventFactory):
@@ -134,7 +150,7 @@ class KeyboardListener(PyKeyboardEvent, EventFactory):
         PyKeyboardEvent.__init__(self)
         self.logger = logging.getLogger("aw.watchers.afk.keyboard")
         self.logger.setLevel(logging.INFO)
-        self.new_activity = threading.Event()
+        self.new_event = threading.Event()
         self._reset_data()
 
     def _reset_data(self):
@@ -143,10 +159,10 @@ class KeyboardListener(PyKeyboardEvent, EventFactory):
         }
 
     def tap(self, keycode, character, press):
-        #logging.debug("Clicked keycode: {}".format(keycode))
+        # logging.debug("Clicked keycode: {}".format(keycode))
         self.logger.debug("Input received: {}, {}, {}".format(keycode, character, press))
         self.event_data["presses"] += 1
-        self.new_activity.set()
+        self.new_event.set()
 
     def escape(self, event):
         # Always returns False so that listening is never stopped
@@ -154,18 +170,21 @@ class KeyboardListener(PyKeyboardEvent, EventFactory):
 
     def next_event(self):
         """Returns an event and prepares the internal state so that it can start to build a new event"""
-        self.new_activity.clear()
+        self.new_event.clear()
         data = self.event_data
         self._reset_data()
         return data
+
+    def has_new_event(self):
+        return self.new_event.is_set()
 
 
 class MouseListener(PyMouseEvent, EventFactory):
     def __init__(self):
         PyMouseEvent.__init__(self)
         self.logger = logging.getLogger("aw.watchers.afk.mouse")
-        self.logger.setLevel(logging.INFO)
-        self.new_activity = threading.Event()
+        self.logger.setLevel(logging.DEBUG)
+        self.new_event = threading.Event()
         self.pos = None
         self._reset_data()
 
@@ -178,28 +197,31 @@ class MouseListener(PyMouseEvent, EventFactory):
 
     def click(self, x, y, button, press):
         # TODO: Differentiate between leftclick and rightclick?
-        self.logger.debug("Clicked mousebutton: {}".format(button))
-        self.event_data["clicks"] += 1
-        self.new_activity.set()
+        if press:
+            self.logger.debug("Clicked mousebutton: {}".format(button))
+            self.event_data["clicks"] += 1
+        self.new_event.set()
 
     def move(self, x, y):
         newpos = (x, y)
+        #self.logger.debug("Moved mouse to: {},{}".format(x, y))
         if not self.pos:
             self.pos = newpos
-        delta = tuple(abs(self.pos[i] - newpos[i]) for i in range(2))
-        self.event_data["deltaX"] += newpos[0] + delta[0]
-        self.event_data["deltaY"] += newpos[1] + delta[1]
-        self.logger.debug("Moved mouse to: {},{}".format(x, y))
-        self.new_activity.set()
 
-    def has_new_activity(self):
-        answer = self.new_activity.is_set()
-        self.new_activity.clear()
+        delta = tuple(abs(self.pos[i] - newpos[i]) for i in range(2))
+        self.event_data["deltaX"] += delta[0]
+        self.event_data["deltaY"] += delta[1]
+
+        self.pos = newpos
+        self.new_event.set()
+
+    def has_new_event(self):
+        answer = self.new_event.is_set()
+        self.new_event.clear()
         return answer
 
     def next_event(self):
-        self.new_activity.clear()
+        self.new_event.clear()
         data = self.event_data
         self._reset_data()
         return data
-
