@@ -11,6 +11,7 @@ import requests
 
 from pykeyboard import PyKeyboard, PyKeyboardEvent
 from pymouse import PyMouse, PyMouseEvent
+import pytz
 
 from aw_core.models import Event
 from aw_client import ActivityWatchClient
@@ -47,7 +48,7 @@ def main():
             n = Notify.Notification.new("AFK state changed", msg)
             n.show()
 
-    now = datetime.now()
+    now = datetime.now(pytz.utc)
     last_activity = now
     is_afk = True
 
@@ -92,7 +93,7 @@ def main():
         #        in is_afk when sleep is initiated by the user.
         try:
             sleep(settings["check_interval"])
-            now = datetime.now()
+            now = datetime.now(pytz.utc)
             if mouseListener.has_new_event() or keyboardListener.has_new_event():
                 """
                 Check if there has been any activity on the mouse or keyboard and if so,

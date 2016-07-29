@@ -12,6 +12,7 @@ setup(name='aw-watcher-afk',
       install_requires=[
           'aw-client',
           'pyuserinput',
+          'pytz',
           'python3-xlib==0.16'],
       dependency_links=[
           'https://github.com/ErikBjare/python3-xlib/archive/v0.16.zip#egg=python3-xlib-0.16',
