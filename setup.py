@@ -13,9 +13,9 @@ setup(name='aw-watcher-afk',
           'aw-client',
           'pyuserinput',
           'pytz',
-          'python3-xlib==0.16'],
+          'python-xlib'],
       dependency_links=[
-          'https://github.com/ErikBjare/python3-xlib/archive/v0.16.zip#egg=python3-xlib-0.16',
+          'https://github.com/python-xlib/python-xlib/tarball/master#egg=python-xlib',
           'https://github.com/ActivityWatch/aw-client/tarball/master#egg=aw-client'
       ],
       entry_points={
