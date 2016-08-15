@@ -3,14 +3,9 @@ import platform
 from datetime import datetime, timedelta
 from time import sleep
 import threading
-import json
-import socket
-import sys
 
-import requests
-
-from pykeyboard import PyKeyboard, PyKeyboardEvent
-from pymouse import PyMouse, PyMouseEvent
+from pykeyboard import PyKeyboardEvent
+from pymouse import PyMouseEvent
 import pytz
 
 from aw_core.models import Event
@@ -18,7 +13,7 @@ from aw_client import ActivityWatchClient
 
 # TODO: Move to argparse
 settings = {
-    "timeout": 30,
+    "timeout": 60,
     "check_interval": 1,
 }
 
@@ -48,6 +43,7 @@ def main():
             n.show()
 
     now = datetime.now(pytz.utc)
+    last_change = now
     last_activity = now
     is_afk = True
 
@@ -69,9 +65,18 @@ def main():
         The argument dt should be the time when the last activity was detected,
         which should be: change_to_afk(dt=last_activity)
         """
-        client.send_event(Event(label="not-afk", timestamp=dt))
+        nonlocal last_change
+        e = Event(label=["not-afk"],
+                  timestamp=[last_change],
+                  duration={
+                      "value": (dt - last_change).total_seconds(),
+                      "unit": "seconds"
+                  })
+        client.send_event(e)
         logger.info("Now AFK")
         send_notification("Now AFK")
+
+        last_change = dt
         nonlocal is_afk
         is_afk = True
 
@@ -81,11 +86,20 @@ def main():
         The argument dt should be the time when the at-keyboard indicating activity was detected,
         which should be: change_to_not_afk(dt=now)
         """
-        client.send_event(Event(label="afk", timestamp=dt))
+        nonlocal last_change
+        e = Event(label=["afk"],
+                  timestamp=[last_change],
+                  duration={
+                      "value": (dt - last_change).total_seconds(),
+                      "unit": "seconds"
+                  })
+        client.send_event(e)
         logger.info("No longer AFK")
         send_notification("No longer AFK")
+
         nonlocal is_afk
         is_afk = False
+        last_change = dt
 
     while True:
         # FIXME: Doesn't work if computer is put to sleep since state is unlikely to be
