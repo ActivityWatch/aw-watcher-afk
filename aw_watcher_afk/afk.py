@@ -22,8 +22,7 @@ settings = {
     "check_interval": 1,
 }
 
-logger = logging.getLogger("aw-watcher-afk")
-logger.setLevel(logging.DEBUG)
+logger = logging.getLogger("aw.watchers.afk")
 
 
 def main():
@@ -184,7 +183,6 @@ class MouseListener(PyMouseEvent, EventFactory):
     def __init__(self):
         PyMouseEvent.__init__(self)
         self.logger = logging.getLogger("aw.watchers.afk.mouse")
-        self.logger.setLevel(logging.DEBUG)
         self.new_event = threading.Event()
         self.pos = None
         self._reset_data()
