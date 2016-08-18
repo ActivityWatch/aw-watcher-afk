@@ -77,7 +77,7 @@ def main():
                       "value": (dt - last_change).total_seconds(),
                       "unit": "seconds"
                   })
-        client.send_event(e)
+        client.send_event(bucketname, e)
         logger.info("Now AFK")
         send_notification("Now AFK")
 
@@ -98,7 +98,7 @@ def main():
                       "value": (dt - last_change).total_seconds(),
                       "unit": "seconds"
                   })
-        client.send_event(e)
+        client.send_event(bucketname, e)
         logger.info("No longer AFK")
         send_notification("No longer AFK")
 
