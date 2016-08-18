@@ -32,6 +32,10 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.testing else logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     client = ActivityWatchClient("afkwatcher", testing=args.testing)
 
+    bucketname = "{}_{}".format(client.client_name, client.client_hostname)
+    eventtype = "afkstatus"
+    client.create_bucket(bucketname, eventtype)
+
     if args.desktop_notify:
         from gi.repository import Notify
         Notify.init("afkwatcher")
@@ -72,7 +76,7 @@ def main():
                       "value": (dt - last_change).total_seconds(),
                       "unit": "seconds"
                   })
-        client.send_event(e)
+        client.send_event(bucketname, e)
         logger.info("Now AFK")
         send_notification("Now AFK")
 
@@ -93,7 +97,7 @@ def main():
                       "value": (dt - last_change).total_seconds(),
                       "unit": "seconds"
                   })
-        client.send_event(e)
+        client.send_event(bucketname, e)
         logger.info("No longer AFK")
         send_notification("No longer AFK")
 
