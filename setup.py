@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 
-from setuptools import setup, find_packages
+import sys
+from setuptools import setup
+
+additional_reqs = []
+if sys.platform == "darwin":
+    additional_reqs.append("pyobjc-framework-Quartz")
+
 
 setup(name='aw-watcher-afk',
       version='0.1',
@@ -13,10 +19,10 @@ setup(name='aw-watcher-afk',
           'aw-client',
           'pyuserinput',
           'pytz',
-          # 'python-xlib'
-      ],
+          'python-xlib',
+      ] + additional_reqs,
       dependency_links=[
-          # 'https://github.com/python-xlib/python-xlib/tarball/master#egg=python-xlib',
+          'https://github.com/python-xlib/python-xlib/tarball/master#egg=python-xlib',
           'https://github.com/ActivityWatch/aw-client/tarball/master#egg=aw-client'
       ],
       entry_points={
