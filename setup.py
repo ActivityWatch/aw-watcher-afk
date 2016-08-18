@@ -10,7 +10,7 @@ setup(name='aw-watcher-afk',
       url='https://github.com/ActivityWatch/aw-watcher-afk',
       packages=['aw_watcher_afk'],
       install_requires=[
-          'aw-client',
+          'aw-client>=0.2',
           'pyuserinput',
           'pytz',
           'python-xlib'],
