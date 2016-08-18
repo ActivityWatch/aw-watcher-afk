@@ -33,12 +33,9 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.testing else logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     client = ActivityWatchClient("afkwatcher", testing=args.testing)
 
-    bucketname = "{}@{}".format(client.client_name, client.client_hostname)
+    bucketname = "{}_{}".format(client.client_name, client.client_hostname)
     eventtype = "afkstatus"
-
-    buckets = client.get_buckets()
-    if bucketname not in buckets:
-        client.create_bucket(bucketname, eventtype)
+    client.create_bucket(bucketname, eventtype)
 
     if args.desktop_notify:
         from gi.repository import Notify
