@@ -32,10 +32,10 @@ def main():
     logging.basicConfig(
         level=logging.DEBUG if args.testing else logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    logger = logging.getLogger("aw.watchers.afk")
+    logger = logging.getLogger("aw.watcher.afk")
     
     """ Set up aw-client """
-    client = ActivityWatchClient("afkwatcher", testing=args.testing)
+    client = ActivityWatchClient("aw-watcher-afk", testing=args.testing)
     bucketname = "{}_{}".format(client.client_name, client.client_hostname)
     eventtype = "afkstatus"
     client.create_bucket(bucketname, eventtype)
