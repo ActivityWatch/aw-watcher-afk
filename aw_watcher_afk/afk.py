@@ -1,7 +1,6 @@
 import logging
 import platform
-from datetime import datetime, timedelta
-import pytz
+from datetime import datetime, timedelta, timezone
 from time import sleep
 
 from aw_core.models import Event
@@ -65,7 +64,7 @@ def main():
     
     """ Variable initializer """ 
     afk = None
-    now = datetime.now(pytz.utc)
+    now = datetime.now(timezone.utc)
     last_change = now # Last time the state changed
     last_activity = now # Last time of input activity
     last_update = now # Last report time
@@ -78,7 +77,7 @@ def main():
         nonlocal last_change, last_update
         label = ["afk"] if afk else ["not-afk"]
         e = Event(label=label,
-                  timestamp=[datetime.now(pytz.utc)],
+                  timestamp=[datetime.now(timezone.utc)],
                   duration={
                       "value": duration.total_seconds(),
                       "unit": "seconds"
@@ -104,7 +103,7 @@ def main():
         try:
             sleep(settings["check_interval"])
             last_check = now
-            now = datetime.now(pytz.utc)
+            now = datetime.now(timezone.utc)
 
             new_event = False
             if mouseListener.has_new_event() or keyboardListener.has_new_event():

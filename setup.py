@@ -9,7 +9,7 @@ if sys.platform == "darwin":
 
 
 setup(name='aw-watcher-afk',
-      version='0.1',
+      version='0.2',
       description='AFK watcher for ActivityWatch',
       author='Erik Bjäreholt',
       author_email='erik@bjareho.lt',
@@ -18,7 +18,6 @@ setup(name='aw-watcher-afk',
       install_requires=[
           'aw-client',
           'pyuserinput',
-          'pytz',
           'python-xlib',
       ] + additional_reqs,
       dependency_links=[

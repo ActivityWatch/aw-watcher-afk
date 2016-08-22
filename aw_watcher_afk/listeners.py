@@ -5,7 +5,6 @@ from time import sleep
 
 from pykeyboard import PyKeyboardEvent
 from pymouse import PyMouseEvent
-import pytz
 
 
 
