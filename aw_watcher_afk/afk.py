@@ -101,8 +101,8 @@ def main():
     
     while True:
         try:
-            sleep(settings["check_interval"])
             last_check = now
+            sleep(settings["check_interval"])
             now = datetime.now(timezone.utc)
 
             new_event = False
@@ -117,17 +117,18 @@ def main():
                 logger.debug(keyboard_event)
           
            
-            if now >= last_check + timedelta(seconds=30):
-                # Computer has been woken up from a sleep/hibernation
-                # (or computer has a 30sec hang, which is unlikely)
-                pass
-            
             if afk == None:
                 """ Initialization """
                 afk = False
                 # Report
                 report_state(afk=False, duration=timedelta(), update=False)
 
+            elif now > last_check + timedelta(seconds=30):
+                # Computer has been woken up from a sleep/hibernation
+                # (or computer has a 30sec hang, which is unlikely)
+                afk = False
+                report_state(afk=False, duration=timedelta(), update=False)
+            
             elif afk and new_event:
                 """ No longer AFK """
                 afk = False
