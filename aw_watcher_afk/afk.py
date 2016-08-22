@@ -15,7 +15,7 @@ settings = {
     "check_interval": 1,
 }
 
-logger = logging.getLogger("aw.watchers.afk")
+logger = logging.getLogger("aw.watcher.afk")
 
 
 def main():
@@ -28,7 +28,7 @@ def main():
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG if args.testing else logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    client = ActivityWatchClient("afkwatcher", testing=args.testing)
+    client = ActivityWatchClient("aw-watcher-afk", testing=args.testing)
 
     bucketname = "{}_{}".format(client.client_name, client.client_hostname)
     eventtype = "afkstatus"
