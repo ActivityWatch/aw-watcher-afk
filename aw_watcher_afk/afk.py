@@ -1,7 +1,6 @@
 import logging
 import platform
-from datetime import datetime, timedelta
-import pytz
+from datetime import datetime, timedelta, timezone
 from time import sleep
 
 from aw_core.models import Event
@@ -12,13 +11,14 @@ from .listeners import KeyboardListener, MouseListener
 # TODO: Move to argparse
 settings = {
     "timeout": 60,
+    "update_interval": 30,
     "check_interval": 1,
 }
 
-logger = logging.getLogger("aw.watcher.afk")
 
 
 def main():
+    """ Set up argparse """
     import argparse
 
     parser = argparse.ArgumentParser("A watcher for keyboard and mouse input to detect AFK state")
@@ -27,13 +27,19 @@ def main():
 
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.DEBUG if args.testing else logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    """ Set up logging """
+    logging.basicConfig(
+        level=logging.DEBUG if args.testing else logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    logger = logging.getLogger("aw.watcher.afk")
+    
+    """ Set up aw-client """
     client = ActivityWatchClient("aw-watcher-afk", testing=args.testing)
-
     bucketname = "{}_{}".format(client.client_name, client.client_hostname)
     eventtype = "afkstatus"
     client.create_bucket(bucketname, eventtype)
 
+    """ Desktop Notifications """
     if args.desktop_notify:
         from gi.repository import Notify
         Notify.init("afkwatcher")
@@ -44,105 +50,107 @@ def main():
             n = Notify.Notification.new("AFK state changed", msg)
             n.show()
 
-    now = datetime.now(pytz.utc)
-    last_change = now
-    last_activity = now
-    is_afk = True
-
+    """ Setup listeners """
     mouseListener = MouseListener()
     mouseListener.start()
 
     keyboardListener = KeyboardListener()
     # OS X doesn't seem to like the KeyboardListener, segfaults
-    if platform.system() != "Darwin":
-        keyboardListener.start()
-    else:
+    if platform.system() == "Darwin":
         logger.warning("KeyboardListener is broken in OS X, will not use for detecting AFK state.")
+    else:
+        keyboardListener.start()
+
+    
+    """ Variable initializer """ 
+    afk = None
+    now = datetime.now(timezone.utc)
+    last_change = now # Last time the state changed
+    last_activity = now # Last time of input activity
+    last_update = now # Last report time
+    last_check = now # Last check/poll time
+    
+    
+    """ State Reporter """
+    
+    def report_state(afk, duration, update):
+        nonlocal last_change, last_update
+        label = ["afk"] if afk else ["not-afk"]
+        e = Event(label=label,
+                  timestamp=[datetime.now(timezone.utc)],
+                  duration=duration.total_seconds())
+        last_update = now
+        if update:
+            client.replace_last_event(bucketname, e)
+        else:
+            last_change = now
+            client.send_event(bucketname, e)
+            msg = "You are now AFK" if afk else "You are no longer AFK"
+            logger.info(msg)
+            send_notification(msg)
+
+    """
+    Run Watcher
+    """
+
 
     logger.info("afkwatcher started")
-
-    def change_to_afk(dt: datetime):
-        """
-        This function should be called when user becomes AFK
-        The argument dt should be the time when the last activity was detected,
-        which should be: change_to_afk(dt=last_activity)
-        """
-        nonlocal last_change
-        e = Event(label=["not-afk"],
-                  timestamp=[last_change],
-                  duration={
-                      "value": (dt - last_change).total_seconds(),
-                      "unit": "seconds"
-                  })
-        client.send_event(bucketname, e)
-        logger.info("Now AFK")
-        send_notification("Now AFK")
-
-        last_change = dt
-        nonlocal is_afk
-        is_afk = True
-
-    def change_to_not_afk(dt: datetime):
-        """
-        This function should be called when user is no longer AFK
-        The argument dt should be the time when the at-keyboard indicating activity was detected,
-        which should be: change_to_not_afk(dt=now)
-        """
-        nonlocal last_change
-        e = Event(label=["afk"],
-                  timestamp=[last_change],
-                  duration={
-                      "value": (dt - last_change).total_seconds(),
-                      "unit": "seconds"
-                  })
-        client.send_event(bucketname, e)
-        logger.info("No longer AFK")
-        send_notification("No longer AFK")
-
-        nonlocal is_afk
-        is_afk = False
-        last_change = dt
-
+    
     while True:
-        # FIXME: Doesn't work if computer is put to sleep since state is unlikely to be
-        #        in is_afk when sleep is initiated by the user.
         try:
+            last_check = now
             sleep(settings["check_interval"])
-            now = datetime.now(pytz.utc)
+            now = datetime.now(timezone.utc)
+
+            new_event = False
             if mouseListener.has_new_event() or keyboardListener.has_new_event():
-                """
-                Check if there has been any activity on the mouse or keyboard and if so,
-                update last_activity to now and set is_afk to False if previously AFK
-                """
-                # logger.debug("activity detected")
+                new_event = True
+                last_activity = now
+                # Get events 
                 mouse_event = mouseListener.next_event()
                 keyboard_event = keyboardListener.next_event()
-
+                # Log
                 logger.debug(mouse_event)
                 logger.debug(keyboard_event)
+          
+           
+            if afk == None:
+                """ Initialization """
+                afk = False
+                # Report
+                report_state(afk=False, duration=timedelta(), update=False)
 
-                if is_afk:
-                    """
-                    No longer AFK
-                    If AFK, keyboard/mouse activity indicates the user is no longer AFK
-                    """
-                    change_to_not_afk(now)
-                elif now - last_activity > timedelta(seconds=settings["timeout"]):
-                    """
-                    is_afk=False, but loop has been interrupted so user might actually be afk
-                    Took longer than `timeout` since last loop, computer likely put to sleep
-                    """
-                    change_to_afk(dt=last_activity)
-                    change_to_not_afk(dt=now)
-                last_activity = now
-            if not is_afk:
-                # If not previously AFK, check if enough time has passed for user to now be considered AFK
-                passed_time = now - last_activity
-                passed_afk = passed_time > timedelta(seconds=settings["timeout"])
-                if passed_afk:
-                    # Now AFK
-                    # Store event with the ended non-AFK period
-                    change_to_afk(dt=last_activity)
+            elif now > last_check + timedelta(seconds=30):
+                # Computer has been woken up from a sleep/hibernation
+                # (or computer has a 30sec hang, which is unlikely)
+                afk = False
+                report_state(afk=False, duration=timedelta(), update=False)
+            
+            elif afk and new_event:
+                """ No longer AFK """
+                afk = False
+                # Report
+                if last_change:
+                    report_state(afk=True, duration=now-last_change, update=True)
+                report_state(afk=False, duration=timedelta(), update=False)
+
+            elif not afk and now > last_activity + timedelta(seconds=settings["timeout"]):
+                """ Now afk """
+                afk = True
+                # Report
+                if last_change:
+                    report_state(afk=False, duration=last_activity-last_change, update=True)
+                report_state(afk=True, duration=now-last_activity, update=False)
+
+            elif now > last_update + timedelta(seconds=settings["update_interval"]):
+                """ Report state again if it was a long time since last time """
+                if afk:
+                    # Report AFK state from last activity
+                    report_state(afk=True, duration=now-last_change, update=True)
+                else:
+                    # Updated not-afk state from last activity
+                    report_state(afk=False, duration=now-last_change, update=True)
+            
 
         except KeyboardInterrupt:
             logger.info("afkwatcher stopped by keyboard interrupt")
