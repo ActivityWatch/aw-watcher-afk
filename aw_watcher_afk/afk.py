@@ -78,7 +78,7 @@ def main():
         label = ["afk"] if afk else ["not-afk"]
         e = Event(label=label,
                   timestamp=[datetime.now(timezone.utc)],
-                  duration=duration.total_seconds())
+                  duration=duration)
         last_update = now
         if update:
             client.replace_last_event(bucketname, e)
