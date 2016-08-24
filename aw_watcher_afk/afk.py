@@ -10,9 +10,9 @@ from .listeners import KeyboardListener, MouseListener
 
 # TODO: Move to argparse
 settings = {
-    "timeout": 180,
-    "update_interval": 30,
-    "check_interval": 5,
+    "timeout": 30,
+    "update_interval": 15,
+    "check_interval": 1,
 }
 
 
@@ -65,6 +65,7 @@ def main():
     now = datetime.now(timezone.utc)
     last_change = now  # Last time the state changed
     last_activity = now  # Last time of input activity
+    previous_activity = now # Last time of input activity prior to the current one
     last_update = now  # Last report time
     last_check = now  # Last check/poll time
 
@@ -103,6 +104,7 @@ def main():
             new_event = False
             if mouseListener.has_new_event() or keyboardListener.has_new_event():
                 new_event = True
+                previous_activity = last_activity
                 last_activity = now
                 # Get events
                 mouse_event = mouseListener.next_event()
@@ -117,12 +119,24 @@ def main():
                 # Report
                 report_state(afk=False, duration=timedelta())
 
+            if now >= last_check + timedelta(seconds=30):
+                # Computer has been woken up from a sleep/hibernation
+                # (or computer has a 30sec hang, which is unlikely)
+                # Report
+                if last_change:
+                    if afk:
+                        report_state(afk=True, duration=now - previous_activity, update=True)
+                    else:
+                        report_state(afk=True, duration=now - previous_activity)
+                report_state(afk=False, duration=timedelta(), update=False)
+                afk = False
+
             elif afk and new_event:
                 """ No longer AFK """
                 afk = False
                 # Report
                 if last_change:
-                    report_state(afk=True, duration=now - last_change, update=True)
+                    report_state(afk=True, duration=now - previous_activity, update=True)
                 report_state(afk=False, duration=timedelta(), update=False)
 
             elif not afk and now > last_activity + timedelta(seconds=settings["timeout"]):
