@@ -10,9 +10,9 @@ from .listeners import KeyboardListener, MouseListener
 
 # TODO: Move to argparse
 settings = {
-    "timeout": 60,
+    "timeout": 180,
     "update_interval": 30,
-    "check_interval": 1,
+    "check_interval": 5,
 }
 
 
