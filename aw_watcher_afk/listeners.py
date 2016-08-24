@@ -55,6 +55,7 @@ class MouseListener(PyMouseEvent, EventFactory):
     def __init__(self):
         PyMouseEvent.__init__(self)
         self.logger = logging.getLogger("aw.watchers.afk.mouse")
+        self.logger.setLevel(logging.INFO)
         self.new_event = threading.Event()
         self.pos = None
         self._reset_data()
