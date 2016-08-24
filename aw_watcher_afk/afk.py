@@ -16,7 +16,6 @@ settings = {
 }
 
 
-
 def main():
     """ Set up argparse """
     import argparse
@@ -32,7 +31,7 @@ def main():
         level=logging.DEBUG if args.testing else logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     logger = logging.getLogger("aw.watcher.afk")
-    
+
     """ Set up aw-client """
     client = ActivityWatchClient("aw-watcher-afk", testing=args.testing)
     bucketname = "{}_{}".format(client.client_name, client.client_hostname)
@@ -61,19 +60,19 @@ def main():
     else:
         keyboardListener.start()
 
-    
-    """ Variable initializer """ 
+    """ Variable initializer """
     afk = None
     now = datetime.now(timezone.utc)
-    last_change = now # Last time the state changed
-    last_activity = now # Last time of input activity
-    last_update = now # Last report time
-    last_check = now # Last check/poll time
-    
-    
-    """ State Reporter """
-    
-    def report_state(afk, duration, update):
+    last_change = now  # Last time the state changed
+    last_activity = now  # Last time of input activity
+    last_update = now  # Last report time
+    last_check = now  # Last check/poll time
+
+    """
+    State Reporter
+    """
+
+    def report_state(afk, duration, update=False):
         nonlocal last_change, last_update
         label = ["afk"] if afk else ["not-afk"]
         e = Event(label=label,
@@ -93,9 +92,8 @@ def main():
     Run Watcher
     """
 
-
     logger.info("afkwatcher started")
-    
+
     while True:
         try:
             last_check = now
@@ -106,32 +104,31 @@ def main():
             if mouseListener.has_new_event() or keyboardListener.has_new_event():
                 new_event = True
                 last_activity = now
-                # Get events 
+                # Get events
                 mouse_event = mouseListener.next_event()
                 keyboard_event = keyboardListener.next_event()
                 # Log
                 logger.debug(mouse_event)
                 logger.debug(keyboard_event)
-          
-           
-            if afk == None:
+
+            if afk is None:
                 """ Initialization """
                 afk = False
                 # Report
-                report_state(afk=False, duration=timedelta(), update=False)
+                report_state(afk=False, duration=timedelta())
 
             elif now > last_check + timedelta(seconds=30):
                 # Computer has been woken up from a sleep/hibernation
                 # (or computer has a 30sec hang, which is unlikely)
                 afk = False
                 report_state(afk=False, duration=timedelta(), update=False)
-            
+
             elif afk and new_event:
                 """ No longer AFK """
                 afk = False
                 # Report
                 if last_change:
-                    report_state(afk=True, duration=now-last_change, update=True)
+                    report_state(afk=True, duration=now - last_change, update=True)
                 report_state(afk=False, duration=timedelta(), update=False)
 
             elif not afk and now > last_activity + timedelta(seconds=settings["timeout"]):
@@ -139,23 +136,20 @@ def main():
                 afk = True
                 # Report
                 if last_change:
-                    report_state(afk=False, duration=last_activity-last_change, update=True)
-                report_state(afk=True, duration=now-last_activity, update=False)
+                    report_state(afk=False, duration=last_activity - last_change, update=True)
+                report_state(afk=True, duration=now - last_activity, update=False)
 
             elif now > last_update + timedelta(seconds=settings["update_interval"]):
                 """ Report state again if it was a long time since last time """
                 if afk:
                     # Report AFK state from last activity
-                    report_state(afk=True, duration=now-last_change, update=True)
+                    report_state(afk=True, duration=now - last_change, update=True)
                 else:
                     # Updated not-afk state from last activity
-                    report_state(afk=False, duration=now-last_change, update=True)
-            
-
+                    report_state(afk=False, duration=now - last_change, update=True)
         except KeyboardInterrupt:
             logger.info("afkwatcher stopped by keyboard interrupt")
             break
         except Exception as e:
             logger.warning("afkwatcher stopped by unexpected exception:\n{}".format(str(e)))
             break
-
