@@ -117,12 +117,6 @@ def main():
                 # Report
                 report_state(afk=False, duration=timedelta())
 
-            elif now > last_check + timedelta(seconds=30):
-                # Computer has been woken up from a sleep/hibernation
-                # (or computer has a 30sec hang, which is unlikely)
-                afk = False
-                report_state(afk=False, duration=timedelta(), update=False)
-
             elif afk and new_event:
                 """ No longer AFK """
                 afk = False
