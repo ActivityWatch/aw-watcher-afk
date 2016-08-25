@@ -93,7 +93,10 @@ def main():
         else:
             last_change = now
             client.send_event(bucketname, e)
-            msg = "You are now AFK" if afk else "You are no longer AFK"
+            if afk:
+                msg = "Now AFK (no activity for {timeout}s, therefore became AFK {timeout}s ago)".format(timeout=settings["timeout"])
+            else:
+                msg = "No longer AFK (activity detected)"
             logger.info(msg)
             send_notification(msg)
 
