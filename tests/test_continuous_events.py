@@ -15,12 +15,19 @@ for event in sorted(events, key=lambda e: e.timestamp):
     if last_event:
         # The diff is the gap between the two events, should be zero
         # In reality it is currently sometimes negative and almost always larger than 1s
-        diff = ((event.timestamp - last_event.timestamp) - last_event.duration)
-        if not timedelta(seconds=1) > diff > timedelta(seconds=-1):
-            print("Diff had absolute value of over 1s: {}".format(diff))
+        diff = (event.timestamp - last_event.timestamp) - last_event.duration
+
+        print("{} at {}".format(event.label, event.timestamp))
+        print("Duration: {}".format(event.duration))
+
+        if not timedelta(seconds=1) > abs(diff):
+            print("  WARNING: Diff had absolute value of over 1s ({})".format(diff))
             wrong_events += 1
-        print("{} {} {}".format(event.timestamp, event.duration, diff))
+
+        if last_event.label == event.label:
+            print("  WARNING: Two {} events in a row".format(event.label))
+
+        print("")
     last_event = event
 
 print("Percent of wrong events: {}".format(wrong_events / len(events)))
-
