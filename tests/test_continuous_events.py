@@ -1,11 +1,19 @@
+# Usage:
+#   python3 test_continous_events.py aw-watcher-afk-testing_{hostname}
+#
+# Example:
+#   python3 test_continous_events.py aw-watcher-afk-testing_erb-laptop-ubuntu
+
+import sys
 from datetime import timedelta
 
 from aw_client import ActivityWatchClient
 
-client = ActivityWatchClient("aw-watcher-afk", testing=True)
+client = ActivityWatchClient("aw-watcher-afk-test", testing=True)
 print(client.get_buckets())
 
-events = client.get_events("aw-watcher-afk-testing_erb-laptop-ubuntu")
+bucket_id = sys.argv[1]
+events = client.get_events(bucket_id)  # For example "aw-watcher-afk-testing_erb-laptop-ubuntu"
 
 print("\n\n")
 
