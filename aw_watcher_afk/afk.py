@@ -9,9 +9,10 @@ from aw_client import ActivityWatchClient
 from .listeners import KeyboardListener, MouseListener
 
 # TODO: Move to argparse
+# Will be overridden if --testing flag is given
 settings = {
-    "timeout": 30,
-    "update_interval": 10,
+    "timeout": 180,
+    "update_interval": 30,
     "check_interval": 5,
 }
 
@@ -29,6 +30,12 @@ def main():
                         help='sends desktop notifications when you become afk/non-afk')
 
     args = parser.parse_args()
+
+    """ If running in testing mode, use shortened timeouts """
+    if args.testing:
+        settings["timeout"] = 20
+        settings["update_interval"] = 5
+        settings["check_interval"] = 1
 
     """ Set up logging """
     logging.basicConfig(
