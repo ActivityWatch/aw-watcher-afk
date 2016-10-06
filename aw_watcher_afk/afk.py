@@ -148,7 +148,7 @@ def main():
                 mouse_event = mouseListener.next_event()
                 keyboard_event = keyboardListener.next_event()
 
-            if now > last_check + timedelta(seconds=settings["timeout"]):
+            if now > last_check + timedelta(seconds=2 * settings["check_interval"]):
                 """
                 Computer has been woken up from a sleep/hibernation
                 (or computer has a hang longer than the timeout, which is unlikely)
