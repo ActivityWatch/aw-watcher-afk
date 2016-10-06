@@ -159,7 +159,7 @@ def main():
                 # set_state(True, second_last_activity)
                 # TODO: Uncertain about this conditional
                 if afk:
-                    _report_state(afk=True, duration=now - second_last_activity, update=True)
+                    _report_state(afk=True, duration=now - second_last_activity, timestamp=second_last_activity, update=True)
                 else:
                     change_state(second_last_activity)
                 change_state(now)
