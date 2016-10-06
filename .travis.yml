@@ -8,8 +8,9 @@ matrix:
    - python: "nightly"
 
 install:
- - "pip install pyinstaller"
+ - "pip install pyinstaller mypy-lang"
  - "python setup.py install"
 
 script:
+ - "./typecheck.sh"
  - "pyinstaller aw-watcher-afk.spec"

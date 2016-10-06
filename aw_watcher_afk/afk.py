@@ -2,6 +2,7 @@ import logging
 import platform
 from datetime import datetime, timedelta, timezone
 from time import sleep
+import argparse
 
 from aw_core.models import Event
 from aw_client import ActivityWatchClient
@@ -17,10 +18,8 @@ settings = {
 }
 
 
-def main():
+def main() -> None:
     """ Set up argparse """
-    import argparse
-
     parser = argparse.ArgumentParser("A watcher for keyboard and mouse input to detect AFK state")
     parser.add_argument("-v", dest='verbose', action="store_true",
                         help='run with verbose logging')
@@ -28,7 +27,6 @@ def main():
                         help='run in testing mode')
     parser.add_argument("--desktop-notify", action="store_true",
                         help='sends desktop notifications when you become afk/non-afk')
-
     args = parser.parse_args()
 
     """ If running in testing mode, use shortened timeouts """
