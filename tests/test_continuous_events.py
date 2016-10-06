@@ -21,7 +21,7 @@ for event in sorted(events, key=lambda e: e.timestamp):
         print("Duration: {}".format(event.duration))
 
         if not timedelta(seconds=1) > abs(diff):
-            print("  WARNING: Diff had absolute value of over 1s ({})".format(diff))
+            print("  WARNING: Diff had absolute value of over 1s ({}), this might be either because of a bug or due to aw-watcher-afk not running continuously".format(diff))
             wrong_events += 1
 
         if last_event.label == event.label:
