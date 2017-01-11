@@ -46,7 +46,8 @@ def main() -> None:
     client = ActivityWatchClient("aw-watcher-afk", testing=args.testing)
     bucketname = "{}_{}".format(client.client_name, client.client_hostname)
     eventtype = "afkstatus"
-    client.create_bucket(bucketname, eventtype)
+    client.setup_bucket(bucketname, eventtype)
+    client.connect()
 
     """ Desktop Notifications """
     if args.desktop_notify:
