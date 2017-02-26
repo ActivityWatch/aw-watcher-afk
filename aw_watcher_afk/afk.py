@@ -108,7 +108,7 @@ def main() -> None:
         _report_state(afk=afk, duration=now - when, timestamp=last_change, update=False)
 
         if afk:
-            msg = "Now AFK (no activity for {timeout}s, therefore became AFK {timeout}s ago)".format(timeout=(now - when).total_seconds())
+            msg = "Now AFK (no activity for {timeout}s)".format(timeout=round((now - when).total_seconds()))
         else:
             msg = "No longer AFK (activity detected)"
         logger.info(msg)
