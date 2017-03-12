@@ -2,14 +2,14 @@ from configparser import ConfigParser
 from aw_core.config import load_config
 
 default_settings = {
-    "timeout": 180,
-    "update_interval": 30,
-    "check_interval": 5,
+    "timeout": "180",
+    "update_interval": "30",
+    "check_interval": "5",
 }
 default_testing_settings = {
-    "timeout": 20,
-    "update_interval": 5,
-    "check_interval": 1,
+    "timeout": "20",
+    "update_interval": "5",
+    "check_interval": "1",
 }
 
 default_config = ConfigParser()
