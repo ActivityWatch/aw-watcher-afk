@@ -2,6 +2,7 @@ import logging
 import platform
 from datetime import datetime, timedelta, timezone
 from time import sleep
+from configparser import ConfigParser
 import argparse
 
 from aw_core.models import Event
@@ -9,15 +10,9 @@ from aw_core.log import setup_logging
 from aw_client import ActivityWatchClient
 
 from .listeners import KeyboardListener, MouseListener
+from .config import watcher_config
 
-# TODO: Move to argparse
-# Will be overridden if --testing flag is given
-settings = {
-    "timeout": 180,
-    "update_interval": 30,
-    "check_interval": 5,
-}
-
+settings = {}
 
 def main() -> None:
     """ Set up argparse """
@@ -30,11 +25,11 @@ def main() -> None:
                         help='sends desktop notifications when you become afk/non-afk')
     args = parser.parse_args()
 
-    """ If running in testing mode, use shortened timeouts """
-    if args.testing:
-        settings["timeout"] = 20
-        settings["update_interval"] = 5
-        settings["check_interval"] = 1
+    """ Read settings from config """
+    configsection = "aw-watcher-afk" if not args.testing else "aw-watcher-afk-testing"
+    settings["timeout"] = watcher_config[configsection].getfloat("timeout")
+    settings["update_interval"] = watcher_config[configsection].getfloat("update_interval")
+    settings["check_interval"] = watcher_config[configsection].getfloat("check_interval")
 
     """ Set up logging """
     setup_logging("aw-watcher-afk",
