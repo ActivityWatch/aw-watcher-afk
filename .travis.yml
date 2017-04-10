@@ -1,0 +1,16 @@
+language: python
+matrix:
+  include:
+   - python: "3.5"
+   - python: "nightly"
+  allow_failures:
+   # Doesn't currently play nicely with pyinstaller
+   - python: "nightly"
+
+install:
+ - "pip install pyinstaller mypy-lang"
+ - "python setup.py install"
+
+script:
+ - "./typecheck.sh"
+ - "pyinstaller aw-watcher-afk.spec"
