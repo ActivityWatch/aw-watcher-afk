@@ -2,6 +2,10 @@
 
 from setuptools import setup, find_packages
 
+# Additional windows deps:
+# - PyHook (http://www.lfd.uci.edu/~gohlke/pythonlibs/#pyhook)
+# - pywin32 (`pip install pypiwin32`)
+
 setup(name='aw-watcher-afk',
       version='0.1',
       description='AFK watcher for ActivityWatch',
