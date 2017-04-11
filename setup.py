@@ -21,12 +21,13 @@ setup(name='aw-watcher-afk',
       packages=['aw_watcher_afk'],
       install_requires=[
           'aw-client',
-          'pyuserinput',
+          'pyuserinput>=0.1.12',
           'python-xlib',
       ] + additional_reqs,
       dependency_links=[
           'https://github.com/python-xlib/python-xlib/tarball/master#egg=python-xlib',
-          'https://github.com/ActivityWatch/aw-client/tarball/master#egg=aw-client'
+          'https://github.com/ActivityWatch/aw-client/tarball/master#egg=aw-client',
+          'https://github.com/ActivityWatch/PyUserInput/tarball/master#egg=pyuserinput-0.1.12'
       ],
       entry_points={
           'console_scripts': ['aw-watcher-afk = aw_watcher_afk:main']
