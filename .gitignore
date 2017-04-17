@@ -4,3 +4,4 @@ logs
 *.egg-info
 build
 dist
+*~

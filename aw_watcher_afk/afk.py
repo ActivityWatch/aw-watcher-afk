@@ -12,7 +12,24 @@ from aw_client import ActivityWatchClient
 from .listeners import KeyboardListener, MouseListener
 from .config import watcher_config
 
+if platform.system() == "Windows":
+    from .windows import time_since_last_input as _time_since_last_input_winfail
+
 settings = {}
+
+def _time_since_last_input_unix():
+    raise NotImplementedError
+
+
+def time_since_last_input():
+    system = platform.system()
+    if system == "Darwin" or system == "Linux":
+        return _time_since_last_input_unix()
+    elif system == "Windows":
+        return _time_since_last_input_winfail()
+    else:
+        raise Exception("unknown platform")
+
 
 def main() -> None:
     """ Set up argparse """
@@ -44,6 +61,7 @@ def main() -> None:
     client.setup_bucket(bucketname, eventtype)
     client.connect()
 
+    # TODO: Get rid of desktop notifications, move to client instead
     """ Desktop Notifications """
     if args.desktop_notify:
         from gi.repository import Notify
@@ -73,7 +91,6 @@ def main() -> None:
     last_activity = now         # Last time of input activity
     second_last_activity = now  # Second last time of input activity
     last_update = now           # Last report time
-    last_check = now            # Last check/poll time
 
     def _report_state(afk, duration, timestamp, update=False):
         """
@@ -143,7 +160,7 @@ def main() -> None:
 
             new_event = False
             if mouseListener.has_new_event() or keyboardListener.has_new_event():
-                # logger.debug("New event")
+                logger.debug("New event")
                 new_event = True
                 second_last_activity, last_activity = last_activity, now
                 # Get/clear events
