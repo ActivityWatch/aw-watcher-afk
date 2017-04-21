@@ -8,9 +8,9 @@ matrix:
    - python: "nightly"
 
 install:
- - "pip install pyinstaller mypy-lang"
+ - "pip install pyinstaller mypy"
  - "make build"
 
 script:
- - "./typecheck.sh"
+ - "make test"
  - "make package"
