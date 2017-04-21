@@ -9,8 +9,8 @@ matrix:
 
 install:
  - "pip install pyinstaller mypy-lang"
- - "python setup.py install"
+ - "make build"
 
 script:
  - "./typecheck.sh"
- - "pyinstaller aw-watcher-afk.spec"
+ - "make package"
