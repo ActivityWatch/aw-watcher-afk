@@ -1,3 +1,2 @@
-from .main import main
-
-import __main__
+from . import __main__
+from .__main__ import main
