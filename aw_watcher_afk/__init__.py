@@ -1,3 +1,3 @@
-from .afk import main
+from .main import main
 
 import __main__

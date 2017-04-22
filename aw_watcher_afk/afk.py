@@ -2,14 +2,10 @@ import logging
 import platform
 from datetime import datetime, timedelta, timezone
 from time import sleep
-from configparser import ConfigParser
-import argparse
 
 from aw_core.models import Event
-from aw_core.log import setup_logging
 from aw_client import ActivityWatchClient
 
-from .listeners import KeyboardListener, MouseListener
 from .config import watcher_config
 
 if platform.system() == "Windows":
@@ -40,7 +36,10 @@ def get_time_since_last_input():
 class AFKWatcher:
     def __init__(self, testing=False, settings=None):
         self.logger = logging.getLogger("aw.watcher.afk")
-        self.settings = settings
+
+        # Read settings from config
+        configsection = "aw-watcher-afk" if not testing else "aw-watcher-afk-testing"
+        self.settings = Settings(watcher_config[configsection])
 
         self.client = ActivityWatchClient("aw-watcher-afk", testing=testing)
         self.bucketname = "{}_{}".format(self.client.client_name, self.client.client_hostname)
@@ -117,13 +116,13 @@ class AFKWatcher:
                     self.afk = False
                 else:
                     time_since_last_input = get_time_since_last_input()
-                    print("Time since last input:", time_since_last_input)
+                    self.logger.debug("Time since last input:", time_since_last_input)
 
                     if self.afk and time_since_last_input < self.settings.timeout:
-                        print("No longer AFK")
+                        self.logger.info("No longer AFK")
                         self.change_state(self.now)
                     elif not self.afk and time_since_last_input > self.settings.timeout:
-                        print("Became AFK")
+                        self.logger.info("Became AFK")
                         self.change_state(self.last_activity)
                     elif self.now > self.last_update + timedelta(seconds=self.settings.update_interval):
                         self.update_unchanged(self.now)
@@ -132,28 +131,3 @@ class AFKWatcher:
             except KeyboardInterrupt:
                 self.logger.info("afkwatcher stopped by keyboard interrupt")
                 break
-
-
-def main() -> None:
-    # Set up argparse
-    parser = argparse.ArgumentParser("A watcher for keyboard and mouse input to detect AFK state")
-    parser.add_argument("-v", dest='verbose', action="store_true",
-                        help='run with verbose logging')
-    parser.add_argument("--testing", action="store_true",
-                        help='run in testing mode')
-    parser.add_argument("--desktop-notify", action="store_true",
-                        help='sends desktop notifications when you become afk/non-afk')
-    args = parser.parse_args()
-
-    # Set up logging
-    setup_logging("aw-watcher-afk",
-                  testing=args.testing, verbose=args.verbose,
-                  log_stderr=True, log_file=True)
-
-    # Read settings from config
-    configsection = "aw-watcher-afk" if not args.testing else "aw-watcher-afk-testing"
-    settings = Settings(watcher_config[configsection])
-
-    # Start watcher
-    watcher = AFKWatcher(testing=args.testing, settings=settings)
-    watcher.run()
