@@ -52,6 +52,7 @@ class AFKWatcher:
         self.now = datetime.now(timezone.utc)  # Will update every poll
         self.last_update = self.now
         self.last_change = self.now
+        self.second_last_activity = self.now
 
     def _report_state(self, afk, duration, timestamp, update=False):
         # Report AFK state to aw-server
@@ -116,6 +117,7 @@ class AFKWatcher:
                     self.afk = False
                 else:
                     time_since_last_input = get_time_since_last_input()
+                    self.second_last_activity = self.last_activity
                     self.last_activity = self.now - timedelta(seconds=time_since_last_input)
                     self.logger.debug("Time since last input:", time_since_last_input)
 
