@@ -116,6 +116,7 @@ class AFKWatcher:
                     self.afk = False
                 else:
                     time_since_last_input = get_time_since_last_input()
+                    self.last_activity = self.now - timedelta(seconds=time_since_last_input)
                     self.logger.debug("Time since last input:", time_since_last_input)
 
                     if self.afk and time_since_last_input < self.settings.timeout:
