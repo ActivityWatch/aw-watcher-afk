@@ -2,188 +2,135 @@ import logging
 import platform
 from datetime import datetime, timedelta, timezone
 from time import sleep
-from configparser import ConfigParser
-import argparse
 
 from aw_core.models import Event
-from aw_core.log import setup_logging
 from aw_client import ActivityWatchClient
 
-from .listeners import KeyboardListener, MouseListener
 from .config import watcher_config
 
-settings = {}
+if platform.system() == "Windows":
+    from .windows import time_since_last_input as _time_since_last_input_winfail
+elif platform.system() in ["Darwin", "Linux"]:
+    from .unix import time_since_last_input as _time_since_last_input_unix
 
-def main() -> None:
-    """ Set up argparse """
-    parser = argparse.ArgumentParser("A watcher for keyboard and mouse input to detect AFK state")
-    parser.add_argument("-v", dest='verbose', action="store_true",
-                        help='run with verbose logging')
-    parser.add_argument("--testing", action="store_true",
-                        help='run in testing mode')
-    parser.add_argument("--desktop-notify", action="store_true",
-                        help='sends desktop notifications when you become afk/non-afk')
-    args = parser.parse_args()
 
-    """ Read settings from config """
-    configsection = "aw-watcher-afk" if not args.testing else "aw-watcher-afk-testing"
-    settings["timeout"] = watcher_config[configsection].getfloat("timeout")
-    settings["update_interval"] = watcher_config[configsection].getfloat("update_interval")
-    settings["check_interval"] = watcher_config[configsection].getfloat("check_interval")
+class Settings:
+    def __init__(self, config_section):
+        self.timeout = config_section.getfloat("timeout")
+        self.update_interval = config_section.getfloat("update_interval")
+        self.check_interval = config_section.getfloat("check_interval")
+        # TODO: This is a better name for whichever variable above is this one
+        self.polling_interval = 1
 
-    """ Set up logging """
-    setup_logging("aw-watcher-afk",
-                  testing=args.testing, verbose=args.verbose,
-                  log_stderr=True, log_file=True)
-    logger = logging.getLogger("aw.watcher.afk")
 
-    """ Set up aw-client """
-    client = ActivityWatchClient("aw-watcher-afk", testing=args.testing)
-    bucketname = "{}_{}".format(client.client_name, client.client_hostname)
-    eventtype = "afkstatus"
-    client.setup_bucket(bucketname, eventtype)
-    client.connect()
-
-    """ Desktop Notifications """
-    if args.desktop_notify:
-        from gi.repository import Notify
-        Notify.init("afkwatcher")
-
-    def send_notification(msg):
-        if args.desktop_notify:
-            # Can crash the application if the notification daemon disappears
-            n = Notify.Notification.new("AFK state changed", msg)
-            n.show()
-
-    """ Setup listeners """
-    mouseListener = MouseListener()
-    mouseListener.start()
-
-    keyboardListener = KeyboardListener()
-    # OS X doesn't seem to like the KeyboardListener, segfaults
-    if platform.system() == "Darwin":
-        logger.warning("KeyboardListener is broken in OS X, will not use for detecting AFK state.")
+def get_time_since_last_input():
+    system = platform.system()
+    if system in ["Darwin", "Linux"]:
+        return _time_since_last_input_unix()
+    elif system == "Windows":
+        return _time_since_last_input_winfail()
     else:
-        keyboardListener.start()
+        raise Exception("unknown platform")
 
-    """ Variable initializer """
-    afk = None
-    now = datetime.now(timezone.utc)
-    last_change = now           # Last time the state changed
-    last_activity = now         # Last time of input activity
-    second_last_activity = now  # Second last time of input activity
-    last_update = now           # Last report time
-    last_check = now            # Last check/poll time
 
-    def _report_state(afk, duration, timestamp, update=False):
-        """
-        State Reporter
-        """
+class AFKWatcher:
+    def __init__(self, testing=False, settings=None):
+        self.logger = logging.getLogger("aw.watcher.afk")
+
+        # Read settings from config
+        configsection = "aw-watcher-afk" if not testing else "aw-watcher-afk-testing"
+        self.settings = Settings(watcher_config[configsection])
+
+        self.client = ActivityWatchClient("aw-watcher-afk", testing=testing)
+        self.bucketname = "{}_{}".format(self.client.client_name, self.client.client_hostname)
+
+        eventtype = "afkstatus"
+        self.client.setup_bucket(self.bucketname, eventtype)
+        self.client.connect()
+
+        self.afk = True
+        self.now = datetime.now(timezone.utc)  # Will update every poll
+        self.last_update = self.now
+        self.last_change = self.now
+        self.second_last_activity = self.now
+
+    def _report_state(self, afk, duration, timestamp, update=False):
+        # Report AFK state to aw-server
         try:
             assert duration >= timedelta()
         except:
-            logger.warning("Duration was negative: {}s".format(duration.total_seconds()))
+            self.logger.warning("Duration was negative: {}s".format(duration.total_seconds()))
 
         label = "afk" if afk else "not-afk"
         e = Event(label=label, timestamp=timestamp, duration=duration)
 
         if update:
-            client.replace_last_event(bucketname, e)
+            self.client.replace_last_event(self.bucketname, e)
         else:
-            client.send_event(bucketname, e)
+            self.client.send_event(self.bucketname, e)
 
-    def change_state(when=now):
-        nonlocal afk
-        nonlocal last_change, last_update
+    def change_state(self, when):
+        self._report_state(afk=self.afk, duration=when - self.last_change, timestamp=self.last_change, update=True)
+        self.afk = not self.afk
+        self.last_change = when
+        self.last_update = self.now
+        self._report_state(afk=self.afk, duration=self.now - when, timestamp=self.last_change, update=False)
 
-        _report_state(afk=afk, duration=when - last_change, timestamp=last_change, update=True)
-        afk = not afk
-        last_change = when
-        last_update = now
-        _report_state(afk=afk, duration=now - when, timestamp=last_change, update=False)
+    def update_unchanged(self, when):
+        self.last_update = self.now
+        duration = self.now - self.last_change
+        self._report_state(self.afk, duration=duration, timestamp=self.last_change, update=True)
 
-        if afk:
-            msg = "Now AFK (no activity for {timeout}s)".format(timeout=round((now - when).total_seconds()))
+    def set_state(self, new_afk, when):
+        if self.afk == new_afk:
+            self.update_unchanged(when)
         else:
-            msg = "No longer AFK (activity detected)"
-        logger.info(msg)
-        send_notification(msg)
+            self.change_state(when)
 
-    def update_unchanged(when):
-        nonlocal last_update
-        last_update = now
-        duration = now - last_change
-        _report_state(afk, duration=duration, timestamp=last_change, update=True)
+    def run(self):
+        # TODO: All usage of last_activity can probably be replaced the time_since_last_input equivalent
 
-    def set_state(new_afk, when):
-        if afk == new_afk:
-            update_unchanged(when)
-        else:
-            change_state(when)
+        self.logger.info("afkwatcher started")
 
-    """
-    Run watcher
-    """
+        """ Initialization """
+        sleep(1)
+        self._report_state(afk=self.afk, duration=timedelta(), timestamp=self.now)
 
-    logger.info("afkwatcher started")
+        while True:
+            try:
+                self.last_check = self.now
+                self.now = datetime.now(timezone.utc)
 
-    """ Initialization """
-    sleep(1)
-    afk = not mouseListener.has_new_event() or keyboardListener.has_new_event()
-    _report_state(afk=afk, duration=timedelta(), timestamp=now)
+                if self.now > self.last_check + timedelta(seconds=2 * self.settings.polling_interval):
+                    """
+                    Computer has been woken up from sleep/hibernation
+                    (or has hang for longer than the timeout, which is unlikely)
+                    """
+                    if self.afk:
+                        self._report_state(afk=True, duration=self.now - self.second_last_activity, timestamp=self.second_last_activity, update=True)
+                    else:
+                        self.change_state(self.second_last_activity)
 
-    while True:
-        try:
-            # Might as well be put at the end of the loop, but it's more visible here.
-            # Used for detecting if the computer is put to sleep.
-            last_check = now
-
-            sleep(settings["check_interval"])
-            now = datetime.now(timezone.utc)
-
-            new_event = False
-            if mouseListener.has_new_event() or keyboardListener.has_new_event():
-                # logger.debug("New event")
-                new_event = True
-                second_last_activity, last_activity = last_activity, now
-                # Get/clear events
-                mouse_event = mouseListener.next_event()
-                keyboard_event = keyboardListener.next_event()
-
-            if now > last_check + timedelta(seconds=2 * settings["check_interval"]):
-                """
-                Computer has been woken up from a sleep/hibernation
-                (or computer has a hang longer than the timeout, which is unlikely)
-                """
-                logger.debug(20 * "-")
-                logger.info("Hibernation/sleep/stalling detected")
-                # Report
-                # set_state(True, second_last_activity)
-                # TODO: Uncertain about this conditional
-                if afk:
-                    _report_state(afk=True, duration=now - second_last_activity, timestamp=second_last_activity, update=True)
+                    # NOTE: Kind of iffy. Gives incorrect behavior in case of stall,
+                    #       but it's the easiest solution we found to an annoying problem.
+                    self.last_activity = self.now
+                    self.afk = False
                 else:
-                    change_state(second_last_activity)
-                change_state(now)
-                # NOTE: Kind of iffy. Gives incorrect behavior in case of stall, but it's the easiest solution we found to an annoying problem.
-                last_activity = now
-                afk = False
-            elif afk and new_event:
-                """ No longer AFK """
-                logger.debug(20 * "-")
-                logger.debug("Became non-AFK")
-                change_state(now)
-            elif not afk and now > last_activity + timedelta(seconds=settings["timeout"]):
-                """ Now afk """
-                logger.debug(20 * "-")
-                logger.debug("Became AFK")
-                change_state(last_activity)
-            elif now > last_update + timedelta(seconds=settings["update_interval"]):
-                """ Report state again if it was a long time since last time """
-                logger.debug(20 * "-")
-                logger.debug("Updating last event")
-                update_unchanged(now)
+                    time_since_last_input = get_time_since_last_input()
+                    self.second_last_activity = self.last_activity
+                    self.last_activity = self.now - timedelta(seconds=time_since_last_input)
+                    self.logger.debug("Time since last input:", time_since_last_input)
 
-        except KeyboardInterrupt:
-            logger.info("afkwatcher stopped by keyboard interrupt")
-            break
+                    if self.afk and time_since_last_input < self.settings.timeout:
+                        self.logger.info("No longer AFK")
+                        self.change_state(self.now)
+                    elif not self.afk and time_since_last_input > self.settings.timeout:
+                        self.logger.info("Became AFK")
+                        self.change_state(self.last_activity)
+                    elif self.now > self.last_update + timedelta(seconds=self.settings.update_interval):
+                        self.update_unchanged(self.now)
+
+                sleep(self.settings.polling_interval)
+            except KeyboardInterrupt:
+                self.logger.info("afkwatcher stopped by keyboard interrupt")
+                break

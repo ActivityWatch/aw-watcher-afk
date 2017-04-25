@@ -21,7 +21,7 @@ class KeyboardListener(PyKeyboardEvent, EventFactory):
     def __init__(self):
         PyKeyboardEvent.__init__(self)
         self.logger = logging.getLogger("aw.watchers.afk.keyboard")
-        self.logger.setLevel(logging.INFO)
+        # self.logger.setLevel(logging.DEBUG)
         self.new_event = threading.Event()
         self._reset_data()
 

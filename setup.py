@@ -31,4 +31,7 @@ setup(name='aw-watcher-afk',
       ],
       entry_points={
           'console_scripts': ['aw-watcher-afk = aw_watcher_afk:main']
-      })
+      },
+      classifiers=[
+          'Programming Language :: Python :: 3'
+      ])
