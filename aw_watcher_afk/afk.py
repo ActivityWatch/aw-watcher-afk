@@ -52,6 +52,7 @@ class AFKWatcher:
         self.now = datetime.now(timezone.utc)  # Will update every poll
         self.last_update = self.now
         self.last_change = self.now
+        self.last_activity = self.now  # FIXME: I added this to get rid of a 'name undefined' error, not sure if correct.
         self.second_last_activity = self.now
 
     def _report_state(self, afk, duration, timestamp, update=False):
