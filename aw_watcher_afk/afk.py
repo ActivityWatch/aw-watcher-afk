@@ -61,8 +61,8 @@ class AFKWatcher:
         except:
             self.logger.warning("Duration was negative: {}s".format(duration.total_seconds()))
 
-        label = "afk" if afk else "not-afk"
-        e = Event(label=label, timestamp=timestamp, duration=duration)
+        data = {"status": "afk" if afk else "not-afk"}
+        e = Event(data=data, timestamp=timestamp, duration=duration)
 
         if update:
             self.client.replace_last_event(self.bucketname, e)
