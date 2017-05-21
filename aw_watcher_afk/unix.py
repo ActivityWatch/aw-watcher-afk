@@ -22,7 +22,7 @@ class LastInputUnix:
 
         self.last_activity = datetime.now()
 
-    def time_since_last_input(self) -> float:
+    def seconds_since_last_input(self) -> float:
         # TODO: This has a delay of however often it is called.
         #       Could be solved by creating a custom listener.
         now = datetime.now()
@@ -37,17 +37,17 @@ class LastInputUnix:
 _last_input_unix = None
 
 
-def time_since_last_input():
+def seconds_since_last_input():
     global _last_input_unix
 
     if _last_input_unix is None:
         _last_input_unix = LastInputUnix()
 
-    return _last_input_unix.time_since_last_input()
+    return _last_input_unix.seconds_since_last_input()
 
 
 if __name__ == "__main__":
     from time import sleep
     while True:
         sleep(1)
-        print(time_since_last_input())
+        print(seconds_since_last_input())
