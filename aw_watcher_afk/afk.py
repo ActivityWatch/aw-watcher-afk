@@ -48,9 +48,11 @@ class AFKWatcher:
         self.client.setup_bucket(self.bucketname, eventtype)
         self.client.connect()
 
-    def set_state(self, status, duration):
+    def set_state(self, status, duration, timestamp=None):
         data = {"status": status}
-        e = Event(data=data, timestamp=self.now, duration=duration)
+        if timestamp == None:
+            timestamp = self.now
+        e = Event(data=data, timestamp=timestamp, duration=duration)
         self.client.send_event(self.bucketname, e)
 
     def ping(self, afk):
@@ -87,7 +89,7 @@ class AFKWatcher:
                 if self.now > self.last_check + timedelta(seconds=10 + self.settings.polling_interval):
                     self.logger.debug("Woke up from suspend/hibernation")
                     time_since_last_check = self.now - self.last_check
-                    self.set_state("hibernating", timedelta(seconds=time_since_last_check.total_seconds()))
+                    self.set_state("hibernating", timedelta(seconds=time_since_last_check.total_seconds()), self.last_check)
                 # If no longer AFK
                 elif self.afk and self.seconds_since_last_input < self.settings.timeout:
                     self.logger.info("No longer AFK")
