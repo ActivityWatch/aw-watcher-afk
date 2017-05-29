@@ -100,7 +100,7 @@ class AFKWatcher:
                 elif not self.afk and self.seconds_since_last_input > self.settings.timeout:
                     self.logger.info("Became AFK")
                     self.afk = True
-                    self.set_state("afk", self.timedelta_since_last_input)
+                    self.set_state("afk", self.timedelta_since_last_input, self.last_input)
                 # Send a heartbeat if no state change was made
                 else:
                     if self.afk:
