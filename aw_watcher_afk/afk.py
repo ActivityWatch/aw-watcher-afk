@@ -13,6 +13,8 @@ if platform.system() == "Windows":
 elif platform.system() in ["Darwin", "Linux"]:
     from .unix import time_since_last_input as _time_since_last_input_unix
 
+logger = logging.getLogger(__name__)
+
 
 class Settings:
     def __init__(self, config_section):
@@ -35,7 +37,7 @@ def get_time_since_last_input():
 
 class AFKWatcher:
     def __init__(self, testing=False, settings=None):
-        self.logger = logging.getLogger("aw.watcher.afk")
+        self.logger = logger.getChild(self.__class__.__name__)
 
         # Read settings from config
         configsection = "aw-watcher-afk" if not testing else "aw-watcher-afk-testing"
@@ -90,8 +92,6 @@ class AFKWatcher:
 
     def run(self):
         # TODO: All usage of last_activity can probably be replaced the time_since_last_input equivalent
-
-        self.logger.info("afkwatcher started")
 
         """ Initialization """
         sleep(1)

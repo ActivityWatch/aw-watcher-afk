@@ -6,6 +6,7 @@ from time import sleep
 from pykeyboard import PyKeyboardEvent
 from pymouse import PyMouseEvent
 
+logger = logging.getLogger(__name__)
 
 
 class EventFactory:
@@ -18,10 +19,13 @@ class EventFactory:
 
 
 class KeyboardListener(PyKeyboardEvent, EventFactory):
-    def __init__(self):
+    def __init__(self, count_keypress=False):
         PyKeyboardEvent.__init__(self)
-        self.logger = logging.getLogger("aw.watchers.afk.keyboard")
+        self.logger = logger.getChild(self.__class__.__name__)
         # self.logger.setLevel(logging.DEBUG)
+
+        self.count_keypress = count_keypress
+
         self.new_event = threading.Event()
         self._reset_data()
 
@@ -33,7 +37,8 @@ class KeyboardListener(PyKeyboardEvent, EventFactory):
     def tap(self, keycode, character, press):
         # logging.debug("Clicked keycode: {}".format(keycode))
         self.logger.debug("Input received: {}, {}, {}".format(keycode, character, press))
-        self.event_data["presses"] += 1
+        if self.count_keypress:
+            self.event_data["presses"] += 1
         self.new_event.set()
 
     def escape(self, event):
@@ -52,39 +57,49 @@ class KeyboardListener(PyKeyboardEvent, EventFactory):
 
 
 class MouseListener(PyMouseEvent, EventFactory):
-    def __init__(self):
+    def __init__(self, count_clicks=False, count_mousedelta=False):
         PyMouseEvent.__init__(self)
-        self.logger = logging.getLogger("aw.watchers.afk.mouse")
+
+        self.logger = logger.getChild(self.__class__.__name__)
         self.logger.setLevel(logging.INFO)
+
+        self.count_clicks = count_clicks
+        self.count_mousedelta = count_mousedelta
+
         self.new_event = threading.Event()
         self.pos = None
+
         self._reset_data()
 
     def _reset_data(self):
         self.event_data = {
+            "keypress": 0,
             "clicks": 0,
             "deltaX": 0,
-            "deltaY": 0
+            "deltaY": 0,
         }
 
     def click(self, x, y, button, press):
         # TODO: Differentiate between leftclick and rightclick?
-        if press:
+        if self.count_clicks and press:
             self.logger.debug("Clicked mousebutton: {}".format(button))
             self.event_data["clicks"] += 1
         self.new_event.set()
 
     def move(self, x, y):
-        newpos = (x, y)
-        #self.logger.debug("Moved mouse to: {},{}".format(x, y))
-        if not self.pos:
+        # self.logger.debug("Moved mouse to: {},{}".format(x, y))
+
+        if self.count_mousedelta:
+            newpos = (x, y)
+            if not self.pos:
+                self.pos = newpos
+
+            delta = tuple(abs(self.pos[i] - newpos[i]) for i in range(2))
+            self.event_data["deltaX"] += delta[0]
+            self.event_data["deltaY"] += delta[1]
+
             self.pos = newpos
 
-        delta = tuple(abs(self.pos[i] - newpos[i]) for i in range(2))
-        self.event_data["deltaX"] += delta[0]
-        self.event_data["deltaY"] += delta[1]
-
-        self.pos = newpos
         self.new_event.set()
 
     def has_new_event(self):
