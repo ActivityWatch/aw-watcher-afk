@@ -50,7 +50,7 @@ class AFKWatcher:
 
     def set_state(self, status, duration, timestamp=None):
         data = {"status": status}
-        if timestamp == None:
+        if timestamp is None:
             timestamp = self.now
         e = Event(data=data, timestamp=timestamp, duration=duration)
         self.client.send_event(self.bucketname, e)
@@ -58,7 +58,7 @@ class AFKWatcher:
     def ping(self, afk):
         data = {"status": "afk" if afk else "not-afk"}
         e = Event(data=data, timestamp=self.now)
-        self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout)
+        self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout, queued=True)
 
     def run(self):
         # TODO: All usage of last_input can probably be replaced the self.seconds_since_last_input equivalent
