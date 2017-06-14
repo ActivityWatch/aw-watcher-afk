@@ -6,6 +6,7 @@ from time import sleep
 from pykeyboard import PyKeyboardEvent
 from pymouse import PyMouseEvent
 
+logger = logging.getLogger(__name__)
 
 
 class EventFactory:
@@ -20,7 +21,7 @@ class EventFactory:
 class KeyboardListener(PyKeyboardEvent, EventFactory):
     def __init__(self):
         PyKeyboardEvent.__init__(self)
-        self.logger = logging.getLogger("aw.watchers.afk.keyboard")
+        self.logger = logger.getChild("keyboard")
         # self.logger.setLevel(logging.DEBUG)
         self.new_event = threading.Event()
         self._reset_data()
@@ -54,7 +55,7 @@ class KeyboardListener(PyKeyboardEvent, EventFactory):
 class MouseListener(PyMouseEvent, EventFactory):
     def __init__(self):
         PyMouseEvent.__init__(self)
-        self.logger = logging.getLogger("aw.watchers.afk.mouse")
+        self.logger = logger.getChild("mouse")
         self.logger.setLevel(logging.INFO)
         self.new_event = threading.Event()
         self.pos = None
