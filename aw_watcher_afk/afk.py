@@ -53,7 +53,7 @@ class AFKWatcher:
         if timestamp is None:
             timestamp = self.now
         e = Event(data=data, timestamp=timestamp, duration=duration)
-        self.client.send_event(self.bucketname, e)
+        self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout, queued=True)
 
     def ping(self, afk):
         data = {"status": "afk" if afk else "not-afk"}
