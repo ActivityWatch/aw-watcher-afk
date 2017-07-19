@@ -1,4 +1,4 @@
-.PHONY: build
+.PHONY: build test package clean
 
 build:
 	python3 setup.py install
@@ -10,3 +10,6 @@ test:
 package:
 	pyinstaller aw-watcher-afk.spec --clean --noconfirm
 
+clean:
+	rm -rf build dist
+	rm -rf aw_watcher_afk/__pycache__
