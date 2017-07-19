@@ -58,19 +58,21 @@ class AFKWatcher:
         data = {"status": "afk" if afk else "not-afk"}
         e = Event(data=data, timestamp=self.now)
         self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout, queued=True)
-        
+
     def run(self):
         # TODO: All usage of last_input can probably be replaced the self.seconds_since_last_input equivalent
         logger.info("afkwatcher started")
 
-        """ Initialization """
-        sleep(1)
-
-        """ Init variables """
-        self.afk = False
+        """ Check start state """
+        sleep(self.settings.polling_interval)
+        self.seconds_since_last_input = get_seconds_since_last_input()
+        if self.seconds_since_last_input < self.settings.polling_interval:
+            self.afk = False
+        else:
+            self.afk = True
         self.now = datetime.now(timezone.utc)
-        self.last_check = self.now
-        self.seconds_since_last_input = 0
+        self.last_chek = self.now
+        sleep(self.settings.polling_interval)
 
         """ Start afk checking loop """
         while True:
@@ -78,7 +80,7 @@ class AFKWatcher:
                 if os.getppid() == 1:
                     logger.info("afkwatcher stopped because parent process died")
                     break
-                
+
                 self.last_check = self.now
                 self.now = datetime.now(timezone.utc)
 
@@ -92,6 +94,7 @@ class AFKWatcher:
                     logger.info("Woke up from suspend/hibernation")
                     time_since_last_check = self.now - self.last_check
                     self.set_state("hibernating", timedelta(seconds=time_since_last_check.total_seconds()), self.last_check)
+                    self.afk = False # User is most likely not afk if he/she just woke up the computer
                 # If no longer AFK
                 elif self.afk and self.seconds_since_last_input < self.settings.timeout:
                     logger.info("No longer AFK")
