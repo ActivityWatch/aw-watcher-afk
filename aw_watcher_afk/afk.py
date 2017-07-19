@@ -2,6 +2,7 @@ import logging
 import platform
 from datetime import datetime, timedelta, timezone
 from time import sleep
+import os
 
 from aw_core.models import Event
 from aw_client import ActivityWatchClient
@@ -14,7 +15,6 @@ elif platform.system() in ["Darwin", "Linux"]:
     from .unix import seconds_since_last_input as _seconds_since_last_input_unix
 
 logger = logging.getLogger(__name__)
-
 
 class Settings:
     def __init__(self, config_section):
@@ -33,7 +33,6 @@ def get_seconds_since_last_input():
         return _seconds_since_last_input_winfail()
     else:
         raise Exception("unknown platform")
-
 
 class AFKWatcher:
     def __init__(self, testing=False, settings=None):
@@ -59,7 +58,7 @@ class AFKWatcher:
         data = {"status": "afk" if afk else "not-afk"}
         e = Event(data=data, timestamp=self.now)
         self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout, queued=True)
-
+        
     def run(self):
         # TODO: All usage of last_input can probably be replaced the self.seconds_since_last_input equivalent
         logger.info("afkwatcher started")
@@ -76,6 +75,10 @@ class AFKWatcher:
         """ Start afk checking loop """
         while True:
             try:
+                if os.getppid() == 1:
+                    logger.info("afkwatcher stopped because parent process died")
+                    break
+                
                 self.last_check = self.now
                 self.now = datetime.now(timezone.utc)
 
