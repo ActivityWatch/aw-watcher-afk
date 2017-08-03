@@ -47,20 +47,14 @@ class AFKWatcher:
         self.client.setup_bucket(self.bucketname, eventtype)
         self.client.connect()
 
-    def set_state(self, status, duration, timestamp=None):
-        data = {"status": status}
+    def ping(self, afk, timestamp=None, duration=0):
+        data = {"status": "afk" if afk else "not-afk"}
         if timestamp is None:
             timestamp = self.now
-        e = Event(data=data, timestamp=timestamp, duration=duration)
+        e = Event(timestamp=self.now, duration=duration, data=data)
         self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout, queued=True)
 
-    def ping(self, afk):
-        data = {"status": "afk" if afk else "not-afk"}
-        e = Event(data=data, timestamp=self.now)
-        self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout, queued=True)
-        
     def run(self):
-        # TODO: All usage of last_input can probably be replaced the self.seconds_since_last_input equivalent
         logger.info("afkwatcher started")
 
         """ Initialization """
@@ -69,8 +63,6 @@ class AFKWatcher:
         """ Init variables """
         self.afk = False
         self.now = datetime.now(timezone.utc)
-        self.last_check = self.now
-        self.seconds_since_last_input = 0
 
         """ Start afk checking loop """
         while True:
@@ -82,37 +74,28 @@ class AFKWatcher:
                 self.last_check = self.now
                 self.now = datetime.now(timezone.utc)
 
-                self.seconds_since_last_input = get_seconds_since_last_input()
-                self.timedelta_since_last_input = timedelta(seconds=self.seconds_since_last_input)
-                self.last_input = self.now - self.timedelta_since_last_input
-                logger.debug("Time since last input: {}".format(self.timedelta_since_last_input))
+                self.now = datetime.now(timezone.utc)
+                seconds_since_last_input = get_seconds_since_last_input()
+                logger.debug("Seconds since last input: {}".format(seconds_since_last_input))
 
-                # If program is not allowed to run for more than polling_interval+10s it will assume that the computer has gone into suspend/hibernation
-                if self.now > self.last_check + timedelta(seconds=10 + self.settings.polling_interval):
-                    logger.info("Woke up from suspend/hibernation")
-                    time_since_last_check = self.now - self.last_check
-                    self.set_state("hibernating", timedelta(seconds=time_since_last_check.total_seconds()), self.last_check)
                 # If no longer AFK
-                elif self.afk and self.seconds_since_last_input < self.settings.timeout:
+                if self.afk and seconds_since_last_input < self.settings.timeout:
                     logger.info("No longer AFK")
                     self.ping(self.afk)  # End afk period
                     self.afk = False
-                    self.set_state("not-afk", timedelta())
+                    self.ping(self.afk)
                 # If becomes AFK
-                elif not self.afk and self.seconds_since_last_input > self.settings.timeout:
+                elif not self.afk and seconds_since_last_input >= self.settings.timeout:
                     logger.info("Became AFK")
                     self.afk = True
-                    self.set_state("afk", self.timedelta_since_last_input, self.last_input)
+                    last_input = self.now - self.timedelta_since_last_input
+                    self.ping(self.afk, timestamp=last_input, duration=seconds_since_last_input)
                 # Send a heartbeat if no state change was made
                 else:
-                    if self.afk:
-                        self.ping(self.afk)
-                    elif self.seconds_since_last_input < self.settings.polling_interval:
-                        self.ping(self.afk)
+                    self.ping(self.afk)
 
                 sleep(self.settings.polling_interval)
 
             except KeyboardInterrupt:
                 logger.info("afkwatcher stopped by keyboard interrupt")
-                self.ping(self.afk)
                 break
