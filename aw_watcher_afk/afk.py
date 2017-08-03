@@ -22,10 +22,8 @@ logger = logging.getLogger(__name__)
 class Settings:
     def __init__(self, config_section):
         self.timeout = config_section.getfloat("timeout")
-        self.update_interval = config_section.getfloat("update_interval")
-        self.check_interval = config_section.getfloat("check_interval")
-        # TODO: This is a better name for whichever variable above is this one
-        self.polling_interval = 1
+        self.update_time = config_section.getfloat("update_time")
+        self.poll_time = config_section.getfloat("poll_time")
 
 
 def get_seconds_since_last_input():
@@ -98,7 +96,7 @@ class AFKWatcher:
                 else:
                     self.ping(self.afk)
 
-                sleep(self.settings.polling_interval)
+                sleep(self.settings.poll_time)
 
             except KeyboardInterrupt:
                 logger.info("afkwatcher stopped by keyboard interrupt")
