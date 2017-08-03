@@ -9,12 +9,15 @@ from aw_client import ActivityWatchClient
 
 from .config import watcher_config
 
-if platform.system() == "Windows":
+system = platform.system()
+
+if system == "Windows":
     from .windows import seconds_since_last_input as _seconds_since_last_input_winfail
-elif platform.system() in ["Darwin", "Linux"]:
+elif system in ["Darwin", "Linux"]:
     from .unix import seconds_since_last_input as _seconds_since_last_input_unix
 
 logger = logging.getLogger(__name__)
+
 
 class Settings:
     def __init__(self, config_section):
@@ -26,13 +29,13 @@ class Settings:
 
 
 def get_seconds_since_last_input():
-    system = platform.system()
     if system in ["Darwin", "Linux"]:
         return _seconds_since_last_input_unix()
     elif system == "Windows":
         return _seconds_since_last_input_winfail()
     else:
         raise Exception("unknown platform")
+
 
 class AFKWatcher:
     def __init__(self, testing=False, settings=None):
@@ -67,12 +70,13 @@ class AFKWatcher:
         """ Start afk checking loop """
         while True:
             try:
-                if os.getppid() == 1:
-                    logger.info("afkwatcher stopped because parent process died")
-                    break
-                
-                self.last_check = self.now
-                self.now = datetime.now(timezone.utc)
+                if system in ["Darwin", "Linux"]:
+                    if os.getppid() == 1:
+                        # TODO: This won't work with PyInstaller which starts a bootloader process which will become the parent.
+                        #       There is a solution however.
+                        #       See: https://github.com/ActivityWatch/aw-qt/issues/19#issuecomment-316741125
+                        logger.info("afkwatcher stopped because parent process died")
+                        break
 
                 self.now = datetime.now(timezone.utc)
                 seconds_since_last_input = get_seconds_since_last_input()
