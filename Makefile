@@ -1,7 +1,13 @@
 .PHONY: build test package clean
 
+pip_install_args := . --process-dependency-links
+
+ifdef DEV
+pip_install_args := --editable $(pip_install_args)
+endif
+
 build:
-	python3 setup.py install
+	pip3 install $(pip_install_args)
 
 test:
 	python3 -m mypy aw_watcher_afk --ignore-missing-imports
