@@ -1,3 +1,4 @@
+git+https://github.com/ActivityWatch/aw-core.git@master#egg=aw-core
 git+https://github.com/ActivityWatch/aw-client.git@master#egg=aw-client
 
 pyobjc-framework-Quartz; sys_platform == 'darwin'
