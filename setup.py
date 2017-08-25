@@ -1,20 +1,8 @@
 #!/usr/bin/env python
 
-import sys
-import platform
 from setuptools import setup
 
-additional_reqs = []
-if sys.platform == "darwin":
-    additional_reqs.append("pyobjc-framework-Quartz")
-
-if platform.system() == "Linux":
-    additional_reqs.append('python-xlib')
-
-if platform.system() != "Windows":
-    additional_reqs.append('pyuserinput>=0.1.12')
-
-# Additional windows deps:
+# [No longer needed] Additional windows deps:
 # - PyHook (http://www.lfd.uci.edu/~gohlke/pythonlibs/#pyhook)
 # - pywin32 (`pip install pypiwin32`)
 
@@ -25,14 +13,6 @@ setup(name='aw-watcher-afk',
       author_email='erik@bjareho.lt',
       url='https://github.com/ActivityWatch/aw-watcher-afk',
       packages=['aw_watcher_afk'],
-      install_requires=[
-          'aw-client',
-      ] + additional_reqs,
-      dependency_links=[
-          'https://github.com/python-xlib/python-xlib/tarball/master#egg=python-xlib',
-          'https://github.com/ActivityWatch/aw-client/tarball/master#egg=aw-client',
-          'https://github.com/ActivityWatch/PyUserInput/tarball/master#egg=pyuserinput-0.1.12'
-      ],
       entry_points={
           'console_scripts': ['aw-watcher-afk = aw_watcher_afk:main']
       },
