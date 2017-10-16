@@ -12,9 +12,14 @@ from .config import watcher_config
 system = platform.system()
 
 if system == "Windows":
-    from .windows import seconds_since_last_input as _seconds_since_last_input_winfail
-elif system in ["Darwin", "Linux"]:
-    from .unix import seconds_since_last_input as _seconds_since_last_input_unix
+    from .windows import seconds_since_last_input
+elif system == "Darwin":
+    from .macos import seconds_since_last_input
+elif system == "Linux":
+    from .unix import seconds_since_last_input
+else:
+    raise Exception("Unsupported platform: {}".format(system))
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +29,6 @@ class Settings:
         self.timeout = config_section.getfloat("timeout")
         self.update_time = config_section.getfloat("update_time")
         self.poll_time = config_section.getfloat("poll_time")
-
-
-def get_seconds_since_last_input():
-    if system in ["Darwin", "Linux"]:
-        return _seconds_since_last_input_unix()
-    elif system == "Windows":
-        return _seconds_since_last_input_winfail()
-    else:
-        raise Exception("unknown platform")
 
 
 class AFKWatcher:
@@ -77,22 +73,22 @@ class AFKWatcher:
                         break
 
                 self.now = datetime.now(timezone.utc)
-                seconds_since_last_input = get_seconds_since_last_input()
-                logger.debug("Seconds since last input: {}".format(seconds_since_last_input))
+                seconds_since_input = seconds_since_last_input()
+                logger.debug("Seconds since last input: {}".format(seconds_since_input))
 
                 # If no longer AFK
-                if self.afk and seconds_since_last_input < self.settings.timeout:
+                if self.afk and seconds_since_input < self.settings.timeout:
                     logger.info("No longer AFK")
                     self.ping(self.afk)  # End afk period
                     self.afk = False
                     self.ping(self.afk)
                 # If becomes AFK
-                elif not self.afk and seconds_since_last_input >= self.settings.timeout:
+                elif not self.afk and seconds_since_input >= self.settings.timeout:
                     logger.info("Became AFK")
-                    last_input = self.now - timedelta(seconds=seconds_since_last_input)
+                    last_input = self.now - timedelta(seconds=seconds_since_input)
                     self.ping(self.afk, timestamp=last_input)
                     self.afk = True
-                    self.ping(self.afk, timestamp=last_input, duration=seconds_since_last_input)
+                    self.ping(self.afk, timestamp=last_input, duration=seconds_since_input)
                 # Send a heartbeat if no state change was made
                 else:
                     self.ping(self.afk)

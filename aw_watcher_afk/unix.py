@@ -1,24 +1,19 @@
 import logging
 from datetime import datetime, timedelta, timezone
-import platform
 
 from .listeners import KeyboardListener, MouseListener
 
 
 class LastInputUnix:
     def __init__(self):
-        self.logger = logging.getLogger("LastInputUnix")
+        self.logger = logging.getLogger(__name__)
         # self.logger.setLevel(logging.DEBUG)
 
         self.mouseListener = MouseListener()
         self.mouseListener.start()
 
         self.keyboardListener = KeyboardListener()
-        # FIXME: OS X doesn't seem to like the KeyboardListener, segfaults
-        if platform.system() == "Darwin":
-            self.logger.warning("KeyboardListener is broken in OS X, will not use for detecting AFK state.")
-        else:
-            self.keyboardListener.start()
+        self.keyboardListener.start()
 
         self.last_activity = datetime.now()
 
