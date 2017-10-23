@@ -8,5 +8,16 @@ Watches your keyboard and mouse activity to determine if you are AFK or not
 
 ## Install
 
-    sudo python3 setup.py install
+<!-- TODO: Since the installation process is the same for all watchers, it would be nice to keep the information in one place: the docs -->
 
+Normal install:
+
+```sh
+make build
+```
+
+Developer install (uses `pip install --editable`):
+
+```sh
+make build DEV="true"
+```
