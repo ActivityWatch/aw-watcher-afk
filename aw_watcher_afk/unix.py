@@ -3,6 +3,10 @@ from datetime import datetime, timedelta, timezone
 
 from .listeners import KeyboardListener, MouseListener
 
+# Silences annoying "Unable to determine character".
+# See: https://github.com/ActivityWatch/activitywatch/issues/87
+logging.getLogger("pykeyboard.x11").setLevel(logging.WARN)
+
 
 class LastInputUnix:
     def __init__(self):
