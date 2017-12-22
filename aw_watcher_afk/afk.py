@@ -41,7 +41,7 @@ class AFKWatcher:
         self.bucketname = "{}_{}".format(self.client.client_name, self.client.client_hostname)
 
         eventtype = "afkstatus"
-        self.client.setup_bucket(self.bucketname, eventtype)
+        self.client.create_bucket(self.bucketname, eventtype)
         self.client.connect()
 
     def ping(self, afk, timestamp=None, duration=0):
@@ -56,10 +56,7 @@ class AFKWatcher:
 
         """ Initialization """
         sleep(1)
-
-        """ Init variables """
         self.afk = False
-        self.now = datetime.now(timezone.utc)
 
         """ Start afk checking loop """
         while True:
@@ -74,6 +71,7 @@ class AFKWatcher:
 
                 self.now = datetime.now(timezone.utc)
                 seconds_since_input = seconds_since_last_input()
+                last_input = self.now - timedelta(seconds=seconds_since_input)
                 logger.debug("Seconds since last input: {}".format(seconds_since_input))
 
                 # If no longer AFK
@@ -85,13 +83,15 @@ class AFKWatcher:
                 # If becomes AFK
                 elif not self.afk and seconds_since_input >= self.settings.timeout:
                     logger.info("Became AFK")
-                    last_input = self.now - timedelta(seconds=seconds_since_input)
                     self.ping(self.afk, timestamp=last_input)
                     self.afk = True
                     self.ping(self.afk, timestamp=last_input, duration=seconds_since_input)
                 # Send a heartbeat if no state change was made
                 else:
-                    self.ping(self.afk)
+                    if self.afk:
+                        self.ping(self.afk)
+                    else:
+                        self.ping(self.afk, timestamp=last_input)
 
                 sleep(self.settings.poll_time)
 
