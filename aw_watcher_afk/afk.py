@@ -44,10 +44,8 @@ class AFKWatcher:
         self.client.create_bucket(self.bucketname, eventtype)
         self.client.connect()
 
-    def ping(self, afk, timestamp=None, duration=0):
+    def ping(self, afk, timestamp, duration=0):
         data = {"status": "afk" if afk else "not-afk"}
-        if timestamp is None:
-            timestamp = self.now
         e = Event(timestamp=self.now, duration=duration, data=data)
         self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout, queued=True)
 
@@ -77,9 +75,9 @@ class AFKWatcher:
                 # If no longer AFK
                 if self.afk and seconds_since_input < self.settings.timeout:
                     logger.info("No longer AFK")
-                    self.ping(self.afk)  # End afk period
+                    self.ping(self.afk, timestamp=last_input)
                     self.afk = False
-                    self.ping(self.afk)
+                    self.ping(self.afk, timestamp=last_input)
                 # If becomes AFK
                 elif not self.afk and seconds_since_input >= self.settings.timeout:
                     logger.info("Became AFK")
@@ -89,7 +87,7 @@ class AFKWatcher:
                 # Send a heartbeat if no state change was made
                 else:
                     if self.afk:
-                        self.ping(self.afk)
+                        self.ping(self.afk, timestamp=last_input, duration=seconds_since_input)
                     else:
                         self.ping(self.afk, timestamp=last_input)
 
