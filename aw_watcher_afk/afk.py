@@ -40,10 +40,6 @@ class AFKWatcher:
         self.client = ActivityWatchClient("aw-watcher-afk", testing=testing)
         self.bucketname = "{}_{}".format(self.client.client_name, self.client.client_hostname)
 
-        eventtype = "afkstatus"
-        self.client.create_bucket(self.bucketname, eventtype)
-        self.client.connect()
-
     def ping(self, afk, timestamp, duration=0):
         data = {"status": "afk" if afk else "not-afk"}
         e = Event(timestamp=self.now, duration=duration, data=data)
@@ -56,16 +52,22 @@ class AFKWatcher:
         sleep(1)
         self.afk = False
 
+        eventtype = "afkstatus"
+        self.client.create_bucket(self.bucketname, eventtype, queued=True)
+
         """ Start afk checking loop """
+        with self.client:
+            self.heartbeat_loop()
+
+    def heartbeat_loop(self):
         while True:
             try:
-                if system in ["Darwin", "Linux"]:
-                    if os.getppid() == 1:
-                        # TODO: This won't work with PyInstaller which starts a bootloader process which will become the parent.
-                        #       There is a solution however.
-                        #       See: https://github.com/ActivityWatch/aw-qt/issues/19#issuecomment-316741125
-                        logger.info("afkwatcher stopped because parent process died")
-                        break
+                if system in ["Darwin", "Linux"] and os.getppid() == 1:
+                    # TODO: This won't work with PyInstaller which starts a bootloader process which will become the parent.
+                    #       There is a solution however.
+                    #       See: https://github.com/ActivityWatch/aw-qt/issues/19#issuecomment-316741125
+                    logger.info("afkwatcher stopped because parent process died")
+                    break
 
                 self.now = datetime.now(timezone.utc)
                 seconds_since_input = seconds_since_last_input()

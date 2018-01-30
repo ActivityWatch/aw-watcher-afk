@@ -5,3 +5,4 @@ logs
 build
 dist
 *~
+.mypy_cache
