@@ -42,11 +42,11 @@ class AFKWatcher:
 
     def ping(self, afk, timestamp, duration=0):
         data = {"status": "afk" if afk else "not-afk"}
-        e = Event(timestamp=self.now, duration=duration, data=data)
+        e = Event(timestamp=timestamp, duration=duration, data=data)
         self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout, queued=True)
 
     def run(self):
-        logger.info("afkwatcher started")
+        logger.info("aw-watcher-afk started")
 
         """ Initialization """
         sleep(1)
@@ -96,5 +96,5 @@ class AFKWatcher:
                 sleep(self.settings.poll_time)
 
             except KeyboardInterrupt:
-                logger.info("afkwatcher stopped by keyboard interrupt")
+                logger.info("aw-watcher-afk stopped by keyboard interrupt")
                 break
