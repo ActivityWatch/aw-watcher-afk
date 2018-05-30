@@ -3,12 +3,10 @@ from aw_core.config import load_config
 
 default_settings = {
     "timeout": "180",
-    "update_time": "30",
     "poll_time": "5",
 }
 default_testing_settings = {
     "timeout": "20",
-    "update_time": "5",
     "poll_time": "1",
 }
 
