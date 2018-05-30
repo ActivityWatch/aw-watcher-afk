@@ -1,8 +1,8 @@
 import time
 
 import ctypes
-from ctypes import Structure, POINTER, WINFUNCTYPE, windll
-from ctypes.wintypes import BOOL, UINT, DWORD
+from ctypes import Structure, POINTER, WINFUNCTYPE, windll  # type: ignore
+from ctypes.wintypes import BOOL, UINT, DWORD  # type: ignore
 
 
 class LastInputInfo(Structure):
@@ -12,10 +12,10 @@ class LastInputInfo(Structure):
     ]
 
 
-def _getLastInputTick():
+def _getLastInputTick() -> int:
     prototype = WINFUNCTYPE(BOOL, POINTER(LastInputInfo))
-    paramflags = (1, "lastinputinfo"),
-    c_GetLastInputInfo = prototype(("GetLastInputInfo", ctypes.windll.user32), paramflags)
+    paramflags = (1, "lastinputinfo")
+    c_GetLastInputInfo = prototype(("GetLastInputInfo", ctypes.windll.user32), paramflags)  # type: ignore
 
     l = LastInputInfo()
     l.cbSize = ctypes.sizeof(LastInputInfo)
@@ -26,12 +26,12 @@ def _getLastInputTick():
 def _getTickCount() -> int:
     prototype = WINFUNCTYPE(DWORD)
     paramflags = ()
-    c_GetTickCount = prototype(("GetTickCount", ctypes.windll.kernel32), paramflags)
+    c_GetTickCount = prototype(("GetTickCount", ctypes.windll.kernel32), paramflags)  # type: ignore
     return c_GetTickCount()
 
 
 def seconds_since_last_input():
-    seconds_since_input = (_getTickCount() - _getLastInputTick())/1000
+    seconds_since_input = (_getTickCount() - _getLastInputTick()) / 1000
     return seconds_since_input
 
 
