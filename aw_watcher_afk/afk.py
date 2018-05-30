@@ -26,9 +26,12 @@ logger = logging.getLogger(__name__)
 
 class Settings:
     def __init__(self, config_section):
+        # Time without input before we're considering the user as AFK
         self.timeout = config_section.getfloat("timeout")
-        self.update_time = config_section.getfloat("update_time")
+        # How often we should poll for input activity
         self.poll_time = config_section.getfloat("poll_time")
+
+        assert self.timeout >= self.poll_time
 
 
 class AFKWatcher:
@@ -59,8 +62,8 @@ class AFKWatcher:
             self.heartbeat_loop()
 
     def heartbeat_loop(self):
+        afk = False
         while True:
-            afk = False
             try:
                 if system in ["Darwin", "Linux"] and os.getppid() == 1:
                     # TODO: This won't work with PyInstaller which starts a bootloader process which will become the parent.
