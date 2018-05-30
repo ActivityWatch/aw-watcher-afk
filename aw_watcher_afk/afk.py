@@ -32,7 +32,7 @@ class Settings:
 
 
 class AFKWatcher:
-    def __init__(self, testing=False, settings=None):
+    def __init__(self, testing=False):
         # Read settings from config
         configsection = "aw-watcher-afk" if not testing else "aw-watcher-afk-testing"
         self.settings = Settings(watcher_config[configsection])
@@ -40,7 +40,7 @@ class AFKWatcher:
         self.client = ActivityWatchClient("aw-watcher-afk", testing=testing)
         self.bucketname = "{}_{}".format(self.client.client_name, self.client.client_hostname)
 
-    def ping(self, afk, timestamp, duration=0):
+    def ping(self, afk: bool, timestamp: datetime, duration: float = 0):
         data = {"status": "afk" if afk else "not-afk"}
         e = Event(timestamp=timestamp, duration=duration, data=data)
         self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout, queued=True)
@@ -48,19 +48,19 @@ class AFKWatcher:
     def run(self):
         logger.info("aw-watcher-afk started")
 
-        """ Initialization """
+        # Initialization
         sleep(1)
-        self.afk = False
 
         eventtype = "afkstatus"
         self.client.create_bucket(self.bucketname, eventtype, queued=True)
 
-        """ Start afk checking loop """
+        # Start afk checking loop
         with self.client:
             self.heartbeat_loop()
 
     def heartbeat_loop(self):
         while True:
+            afk = False
             try:
                 if system in ["Darwin", "Linux"] and os.getppid() == 1:
                     # TODO: This won't work with PyInstaller which starts a bootloader process which will become the parent.
@@ -69,29 +69,29 @@ class AFKWatcher:
                     logger.info("afkwatcher stopped because parent process died")
                     break
 
-                self.now = datetime.now(timezone.utc)
+                now = datetime.now(timezone.utc)
                 seconds_since_input = seconds_since_last_input()
-                last_input = self.now - timedelta(seconds=seconds_since_input)
+                last_input = now - timedelta(seconds=seconds_since_input)
                 logger.debug("Seconds since last input: {}".format(seconds_since_input))
 
                 # If no longer AFK
-                if self.afk and seconds_since_input < self.settings.timeout:
+                if afk and seconds_since_input < self.settings.timeout:
                     logger.info("No longer AFK")
-                    self.ping(self.afk, timestamp=last_input)
-                    self.afk = False
-                    self.ping(self.afk, timestamp=last_input)
+                    self.ping(afk, timestamp=last_input)
+                    afk = False
+                    self.ping(afk, timestamp=last_input)
                 # If becomes AFK
-                elif not self.afk and seconds_since_input >= self.settings.timeout:
+                elif not afk and seconds_since_input >= self.settings.timeout:
                     logger.info("Became AFK")
-                    self.ping(self.afk, timestamp=last_input)
-                    self.afk = True
-                    self.ping(self.afk, timestamp=last_input, duration=seconds_since_input)
+                    self.ping(afk, timestamp=last_input)
+                    afk = True
+                    self.ping(afk, timestamp=last_input, duration=seconds_since_input)
                 # Send a heartbeat if no state change was made
                 else:
-                    if self.afk:
-                        self.ping(self.afk, timestamp=last_input, duration=seconds_since_input)
+                    if afk:
+                        self.ping(afk, timestamp=last_input, duration=seconds_since_input)
                     else:
-                        self.ping(self.afk, timestamp=last_input)
+                        self.ping(afk, timestamp=last_input)
 
                 sleep(self.settings.poll_time)
 
