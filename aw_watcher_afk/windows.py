@@ -1,8 +1,8 @@
 import time
 
 import ctypes
-from ctypes import Structure, POINTER, WINFUNCTYPE, windll
-from ctypes.wintypes import BOOL, UINT, DWORD
+from ctypes import Structure, POINTER, WINFUNCTYPE, windll  # type: ignore
+from ctypes.wintypes import BOOL, UINT, DWORD  # type: ignore
 
 
 class LastInputInfo(Structure):
