@@ -46,7 +46,8 @@ class AFKWatcher:
     def ping(self, afk: bool, timestamp: datetime, duration: float = 0):
         data = {"status": "afk" if afk else "not-afk"}
         e = Event(timestamp=timestamp, duration=duration, data=data)
-        self.client.heartbeat(self.bucketname, e, pulsetime=self.settings.timeout, queued=True)
+        pulsetime = self.settings.timeout + self.settings.poll_time
+        self.client.heartbeat(self.bucketname, e, pulsetime=pulsetime, queued=True)
 
     def run(self):
         logger.info("aw-watcher-afk started")
