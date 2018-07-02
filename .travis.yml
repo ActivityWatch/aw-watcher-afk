@@ -4,10 +4,21 @@ matrix:
    - python: "3.5"
    - python: "3.6"
    - python: "nightly"
+   - os: osx
+     language: generic
+     osx_image: xcode7.3
+     env:
+      - PYENV_VERSION='3.5.4'
+      - PYTHON_CONFIGURE_OPTS="--enable-framework"
   allow_failures:
-   # Doesn't currently play nicely with pyinstaller
-   - python: "3.6"
    - python: "nightly"
+
+before_install:
+  - |
+      if [[ -n "$PYENV_VERSION" ]]; then
+        wget https://github.com/praekeltfoundation/travis-pyenv/releases/download/0.4.0/setup-pyenv.sh
+        source setup-pyenv.sh
+      fi
 
 install:
  - "pip install pyinstaller mypy"
