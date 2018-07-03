@@ -1,7 +1,3 @@
-import logging
-import platform
-from datetime import datetime, timedelta, timezone
-from time import sleep
 import argparse
 
 from aw_core.log import setup_logging
@@ -12,7 +8,7 @@ from aw_watcher_afk.afk import AFKWatcher
 def main() -> None:
     # Set up argparse
     parser = argparse.ArgumentParser("A watcher for keyboard and mouse input to detect AFK state")
-    parser.add_argument("-v", dest='verbose', action="store_true",
+    parser.add_argument("-v", "--verbose", dest='verbose', action="store_true",
                         help='run with verbose logging')
     parser.add_argument("--testing", action="store_true",
                         help='run in testing mode')
@@ -26,6 +22,7 @@ def main() -> None:
     # Start watcher
     watcher = AFKWatcher(testing=args.testing)
     watcher.run()
+
 
 if __name__ == "__main__":
     main()
