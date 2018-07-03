@@ -25,5 +25,6 @@ install:
  - "make build"
 
 script:
+ - "make typecheck"
  - "make test"
  - "make package"

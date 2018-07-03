@@ -10,8 +10,10 @@ build:
 	pip3 install $(pip_install_args)
 
 test:
-	python3 -m mypy aw_watcher_afk --ignore-missing-imports
 	aw-watcher-afk --help  # Ensures that it at least starts
+
+typecheck:
+	python3 -m mypy aw_watcher_afk --ignore-missing-imports
 
 package:
 	pyinstaller aw-watcher-afk.spec --clean --noconfirm

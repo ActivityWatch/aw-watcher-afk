@@ -14,8 +14,8 @@ class LastInputInfo(Structure):
 
 def _getLastInputTick() -> int:
     prototype = WINFUNCTYPE(BOOL, POINTER(LastInputInfo))
-    paramflags = (1, "lastinputinfo")
-    c_GetLastInputInfo = prototype(("GetLastInputInfo", ctypes.windll.user32), paramflags)  # type: ignore
+    paramflags = ((1, "lastinputinfo"), )
+    c_GetLastInputInfo = prototype(("GetLastInputInfo", ctypes.windll.user32), paramflags)
 
     l = LastInputInfo()
     l.cbSize = ctypes.sizeof(LastInputInfo)
@@ -26,7 +26,7 @@ def _getLastInputTick() -> int:
 def _getTickCount() -> int:
     prototype = WINFUNCTYPE(DWORD)
     paramflags = ()
-    c_GetTickCount = prototype(("GetTickCount", ctypes.windll.kernel32), paramflags)  # type: ignore
+    c_GetTickCount = prototype(("GetTickCount", ctypes.windll.kernel32), paramflags)
     return c_GetTickCount()
 
 
