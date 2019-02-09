@@ -3,7 +3,7 @@
 pip_install_args := . -r requirements.txt --upgrade
 
 ifdef DEV
-pip_install_args := --editable $(pip_install_args)
+pip_install_args += --editable
 endif
 
 build:
