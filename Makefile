@@ -1,6 +1,6 @@
 .PHONY: build test package clean
 
-pip_install_args := . -r requirements.txt --upgrade
+pip_install_args := . -r requirements.txt
 
 ifdef DEV
 pip_install_args += --editable
