@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+import math
 import threading
 from time import sleep
 
@@ -59,31 +60,42 @@ class MouseListener(PyMouseEvent, EventFactory):
         self.logger.setLevel(logging.INFO)
         self.new_event = threading.Event()
         self.pos = None
+        self.mouse_button_down = False
         self._reset_data()
 
     def _reset_data(self):
         self.event_data = {
             "clicks": 0,
             "deltaX": 0,
-            "deltaY": 0
+            "deltaY": 0,
+            "distance": 0,
         }
 
     def click(self, x, y, button, press):
         # TODO: Differentiate between leftclick and rightclick?
         if press:
-            self.logger.debug("Clicked mousebutton: {}".format(button))
+            if button is 1:
+                self.mouse_button_down = True
+            self.logger.info("Clicked mousebutton: {}".format(button))
+            
             self.event_data["clicks"] += 1
+        else:
+            if button is 1:
+                self.mouse_button_down = False
         self.new_event.set()
 
     def move(self, x, y):
         newpos = (x, y)
-        #self.logger.debug("Moved mouse to: {},{}".format(x, y))
+        # self.logger.info("Moved mouse to: {},{}".format(x, y))
+        
         if not self.pos:
             self.pos = newpos
 
         delta = tuple(abs(self.pos[i] - newpos[i]) for i in range(2))
         self.event_data["deltaX"] += delta[0]
         self.event_data["deltaY"] += delta[1]
+        if not self.mouse_button_down:
+            self.event_data["distance"] += math.sqrt((newpos[0] - self.pos[0])**2 + (newpos[1] - self.pos[1])**2)
 
         self.pos = newpos
         self.new_event.set()
