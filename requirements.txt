@@ -1,6 +1,0 @@
-git+https://github.com/ActivityWatch/aw-core.git@master#egg=aw-core
-git+https://github.com/ActivityWatch/aw-client.git@master#egg=aw-client
-
-pyobjc-framework-Quartz; sys_platform == 'darwin'
-git+https://github.com/python-xlib/python-xlib.git@master#egg=python-xlib; sys_platform == 'linux'
-git+https://github.com/PyUserInput/PyUserInput.git@ac2d4c7a7f4b1a72e70b1a2ef8925d5312fb12bc#egg=pyuserinput;  sys_platform == 'linux'
