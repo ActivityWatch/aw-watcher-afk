@@ -1,13 +1,13 @@
 .PHONY: build test package clean
 
-pip_install_args := . -r requirements.txt
-
 ifdef DEV
-pip_install_args := --editable $(pip_install_args)
+install_cmd := poetry install
+else
+install_cmd := pip3 install .
 endif
 
 build:
-	pip3 install $(pip_install_args)
+	$(install_cmd)
 
 test:
 	aw-watcher-afk --help  # Ensures that it at least starts

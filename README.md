@@ -16,7 +16,7 @@ Normal install:
 make build
 ```
 
-Developer install (uses `pip install --editable`):
+Developer install (requires `poetry`):
 
 ```sh
 make build DEV="true"
