@@ -207,7 +207,7 @@ version = "1.5.1"
 [package.source]
 reference = ""
 type = "url"
-url = "https://github.com/ActivityWatch/wheels/raw/master/pyHook-1.5.1-cp36-cp36m-win32.whl"
+url = "https://github.com/ActivityWatch/wheels/raw/master/pyHook-1.5.1-cp36-cp36m-win_amd64.whl"
 [[package]]
 category = "main"
 description = "Python<->ObjC Interoperability Module"
@@ -399,7 +399,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "89b80c52c027310bae6e7900e44dccfb21eb149b24cb9216c11891e3c1ccea8c"
+content-hash = "529e5f757f41b7481bfd6883ef6ad00faff94e2bcfd0c59f33c7fe8d8eb08339"
 python-versions = "^3.6"
 
 [metadata.files]
