@@ -1,13 +1,7 @@
 .PHONY: build test package clean
 
-ifdef DEV
-install_cmd := poetry install
-else
-install_cmd := pip3 install .
-endif
-
 build:
-	$(install_cmd)
+	poetry install
 
 test:
 	aw-watcher-afk --help  # Ensures that it at least starts

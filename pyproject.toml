@@ -17,7 +17,6 @@ pyuserinput = {git = "https://github.com/PyUserInput/PyUserInput.git", platform 
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.761"
-pyinstaller = "^3.5"
 macholib = {version = "^1.13", platform = "darwin"}
 
 [build-system]
