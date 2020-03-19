@@ -197,6 +197,19 @@ extra = ["msgpack (>=0.5.6)"]
 
 [[package]]
 category = "main"
+description = "pyHook: Python wrapper for out-of-context input hooks in Windows"
+marker = "sys_platform == \"win32\""
+name = "pyHook"
+optional = false
+python-versions = "*"
+version = "1.5.1"
+
+[package.source]
+reference = ""
+type = "url"
+url = "https://github.com/ActivityWatch/wheels/raw/master/pyHook-1.5.1-cp36-cp36m-win32.whl"
+[[package]]
+category = "main"
 description = "Python<->ObjC Interoperability Module"
 marker = "sys_platform == \"darwin\""
 name = "pyobjc-core"
@@ -386,7 +399,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "250cd235e478c5b7458952c038fc5130590eeb0421050a58dd0e8a2167aaf2e1"
+content-hash = "89b80c52c027310bae6e7900e44dccfb21eb149b24cb9216c11891e3c1ccea8c"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -460,6 +473,7 @@ persist-queue = [
     {file = "persist-queue-0.5.0.tar.gz", hash = "sha256:7722ecca67529669ddf6be708d8389994fc893e30ca2491eef0af110dc8ff72c"},
     {file = "persist_queue-0.5.0-py2.py3-none-any.whl", hash = "sha256:8d7159ba5061b071450a5127c1f7b8ab9dae7e45e5a6726db2a7cbf59b8e04fd"},
 ]
+pyHook = []
 pyobjc-core = [
     {file = "pyobjc-core-6.1.tar.gz", hash = "sha256:1a0fbf012fb575e0adf8c18cfd4453e657cc2c0deb2660c529bf524ba4c9149a"},
     {file = "pyobjc_core-6.1-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:470ccd754efb468a59426942673dfc3c5c59f33a5b8cae8a7fc1be975c2d4128"},
