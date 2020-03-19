@@ -15,10 +15,9 @@ before_install:
        wget https://github.com/praekeltfoundation/travis-pyenv/releases/download/0.4.0/setup-pyenv.sh
        source setup-pyenv.sh
      fi
- - "pip3 install poetry"
+ - pip3 install poetry pyinstaller
 
 install:
- - "poetry install --no-root"
  - "make build"
 
 script:
