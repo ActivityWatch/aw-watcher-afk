@@ -1,23 +1,21 @@
-afkwatcher
+aw-watcher-afk
 ==========
 
 [![Build Status](https://travis-ci.org/ActivityWatch/aw-watcher-afk.svg?branch=master)](https://travis-ci.org/ActivityWatch/aw-watcher-afk)
 
-Watches your keyboard and mouse activity to determine if you are AFK or not 
+Watches your keyboard and mouse activity to determine if you are AFK or not
 
+## How to install
 
-## Install
+To install the pre-built application, go to https://activitywatch.net/downloads/
 
-<!-- TODO: Since the installation process is the same for all watchers, it would be nice to keep the information in one place: the docs -->
+To build your own packaged application, run `make package`
 
-Normal install:
+To install the latest git version directly from github without cloning, run
+`pip install git+https://github.com/ActivityWatch/aw-watcher-afk.git`
 
-```sh
-make build
-```
-
-Developer install (requires `poetry`):
-
-```sh
-make build DEV="true"
-```
+To install from a cloned version, cd into the directory and run
+`poetry install` to install inside an virtualenv. If you want to install it
+system-wide it can be installed with `pip install .`, but that has the issue
+that it might not get the exact version of the dependencies due to not reading
+the poetry.lock file.
