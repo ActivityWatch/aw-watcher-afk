@@ -32,7 +32,7 @@ jobs:
       run: |
         pip install poetry
         source venv/bin/activate || source venv/Scripts/activate
-        poetry install
+        poetry install -vvv
     - name: Run tests
       shell: bash
       run: |
