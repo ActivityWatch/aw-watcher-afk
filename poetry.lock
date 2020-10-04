@@ -43,7 +43,7 @@ persist-queue = "^0.5.0"
 requests = "^2.22.0"
 
 [package.source]
-reference = "839e1baf5d916f013415aa102dcb59274ea19a7d"
+reference = "907f5f4cef43b9bea25497525bce130aba4022be"
 type = "git"
 url = "https://github.com/ActivityWatch/aw-client.git"
 [[package]]
@@ -67,7 +67,7 @@ strict-rfc3339 = "^0.7"
 mongo = ["pymongo (^3.10.0)"]
 
 [package.source]
-reference = "216e9fc40634cb835a880fa158821b5441080aea"
+reference = "2f8539bf47d95d2e77d521f4ecc666e0faf45c88"
 type = "git"
 url = "https://github.com/ActivityWatch/aw-core.git"
 [[package]]
