@@ -12,7 +12,7 @@ aw-watcher-afk = "aw_watcher_afk:main"
 python = "^3.6"
 aw-client = {git = "https://github.com/ActivityWatch/aw-client.git"}
 pyobjc-framework-Quartz = { version = "^6.1", platform = "darwin" }
-python-xlib = {git = "https://github.com/python-xlib/python-xlib.git", platform = "linux" }
+python-xlib = { version = "^0.28", platform = "linux" }
 pyuserinput = {git = "https://github.com/PyUserInput/PyUserInput.git", platform = "linux", rev = "ac2d4c7a7f4b1a72e70b1a2ef8925d5312fb12bc"}
 pypiwin32 = {version = "^223", platform = "win32"}
 pyhook = {url = "https://github.com/ActivityWatch/wheels/raw/master/pyHook-1.5.1-cp36-cp36m-win_amd64.whl", platform = "win32" }
