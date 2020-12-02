@@ -43,7 +43,7 @@ jobs:
       shell: bash
       run: |
         source venv/bin/activate || source venv/Scripts/activate
-        pip install pyinstaller==3.5
+        pip install pyinstaller==4.1
         make package
     #- name: Upload packages
     #  uses: actions/upload-artifact@v2-preview
