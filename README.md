@@ -1,7 +1,7 @@
 aw-watcher-afk
-==========
+==============
 
-[![Build Status](https://travis-ci.org/ActivityWatch/aw-watcher-afk.svg?branch=master)](https://travis-ci.org/ActivityWatch/aw-watcher-afk)
+[![Build Status](https://github.com/ActivityWatch/aw-watcher-afk/workflows/Build/badge.svg)](https://github.com/ActivityWatch/aw-watcher-afk/actions)
 
 Watches your keyboard and mouse activity to determine if you are AFK or not
 
