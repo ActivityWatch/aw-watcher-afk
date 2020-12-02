@@ -8,12 +8,13 @@ on:
 
 jobs:
   build:
-    name: Test on ${{ matrix.os }}
+    name: Test on ${{ matrix.os }} (py-${{ matrix.python_version }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-18.04, windows-latest, macOS-latest]
-        python_version: [3.6]
+        python_version: [3.7, 3.8]
     steps:
     - uses: actions/checkout@v2
       with:
