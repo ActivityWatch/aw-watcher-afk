@@ -33,7 +33,7 @@ class KeyboardListener(PyKeyboardEvent, EventFactory):
 
     def tap(self, keycode, character, press):
         # logging.debug("Clicked keycode: {}".format(keycode))
-        self.logger.debug("Input received: {}, {}, {}".format(keycode, character, press))
+        self.logger.debug("Input received")
         self.event_data["presses"] += 1
         self.new_event.set()
 
@@ -71,7 +71,7 @@ class MouseListener(PyMouseEvent, EventFactory):
     def click(self, x, y, button, press):
         # TODO: Differentiate between leftclick and rightclick?
         if press:
-            self.logger.debug("Clicked mousebutton: {}".format(button))
+            self.logger.debug("Clicked mousebutton")
             self.event_data["clicks"] += 1
         self.new_event.set()
 
