@@ -19,7 +19,7 @@ pyhook = {url = "https://github.com/ActivityWatch/wheels/raw/master/pyhook/pyHoo
 pywinhook = {url = "https://github.com/ActivityWatch/wheels/raw/master/pywinhook/pyWinhook-1.6.2-cp38-cp38-win_amd64.whl", markers = "sys_platform == 'win32' and python_version == '3.8'" }
 
 [tool.poetry.dev-dependencies]
-mypy = "^0.761"
+mypy = "*"
 macholib = {version = "^1.13", platform = "darwin"}
 
 [build-system]
