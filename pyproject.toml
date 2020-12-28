@@ -11,7 +11,7 @@ aw-watcher-afk = "aw_watcher_afk:main"
 [tool.poetry.dependencies]
 python = "^3.7"
 aw-client = {git = "https://github.com/ActivityWatch/aw-client.git"}
-pyobjc-framework-Quartz = { version = "^6.1", platform = "darwin" }
+pyobjc-framework-Quartz = { version = "^7.0", platform = "darwin" }
 python-xlib = { version = "^0.28", platform = "linux" }
 pyuserinput = {git = "https://github.com/PyUserInput/PyUserInput.git", platform = "linux", rev = "ac2d4c7a7f4b1a72e70b1a2ef8925d5312fb12bc"}
 pypiwin32 = {version = "^223", platform = "win32"}
