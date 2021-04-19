@@ -1,9 +1,6 @@
 import logging
 import threading
 
-from pynput import keyboard
-from pynput import mouse
-
 logger = logging.getLogger(__name__)
 
 
@@ -24,6 +21,8 @@ class KeyboardListener(EventFactory):
         self._reset_data()
 
     def start(self):
+        from pynput import keyboard
+
         listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
         listener.start()
 
@@ -63,6 +62,8 @@ class MouseListener(EventFactory):
         self.event_data = {"clicks": 0, "deltaX": 0, "deltaY": 0}
 
     def start(self):
+        from pynput import mouse
+
         listener = mouse.Listener(
             on_move=self.on_move, on_click=self.on_click, on_scroll=self.on_scroll
         )
