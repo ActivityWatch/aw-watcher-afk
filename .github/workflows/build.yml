@@ -44,9 +44,12 @@ jobs:
         source venv/bin/activate || source venv/Scripts/activate
         pip install pyinstaller==4.1
         make package
-    #- name: Upload packages
-    #  uses: actions/upload-artifact@v2-preview
-    #  with:
-    #    name: builds-${{ runner.os }}
-    #    path: dist/activitywatch-*.*
-
+    - name: Test package
+      shell: bash
+      run: |
+          dist/aw-watcher-afk/aw-watcher-afk --help
+    - name: Upload package
+      uses: actions/upload-artifact@v2
+      with:
+        name: aw-watcher-afk-${{ runner.os }}
+        path: dist/aw-watcher-afk
