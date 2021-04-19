@@ -26,8 +26,7 @@ jobs:
     - name: Create virtualenv
       shell: bash
       run: |
-        pip install virtualenv
-        python -m virtualenv venv
+        python -m venv venv
     - name: Install dependencies
       shell: bash
       run: |
