@@ -10,21 +10,22 @@ import logging
 import threading
 from abc import ABCMeta, abstractmethod
 from collections import defaultdict
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 # logger.setLevel(logging.DEBUG)
 
 
 class EventFactory(metaclass=ABCMeta):
-    def __init__(self):
+    def __init__(self) -> None:
         self.new_event = threading.Event()
         self._reset_data()
 
     @abstractmethod
-    def _reset_data(self):
-        raise NotImplementedError
+    def _reset_data(self) -> None:
+        self.event_data: Dict[str, Any] = {}
 
-    def next_event(self):
+    def next_event(self) -> dict:
         """Returns an event and prepares the internal state so that it can start to build a new event"""
         self.new_event.clear()
         data = self.event_data
@@ -32,7 +33,7 @@ class EventFactory(metaclass=ABCMeta):
         self._reset_data()
         return data
 
-    def has_new_event(self):
+    def has_new_event(self) -> bool:
         return self.new_event.is_set()
 
 
