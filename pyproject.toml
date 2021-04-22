@@ -15,7 +15,6 @@ aw-client = {git = "https://github.com/ActivityWatch/aw-client.git"}
 pyobjc-framework-Quartz = { version = "^7.0", platform = "darwin" }
 python-xlib = { version = "^0.28", platform = "linux" }
 pynput = "^1.7.3"
-appdirs = "^1.4.4"
 
 [tool.poetry.dev-dependencies]
 mypy = "*"

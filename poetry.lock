@@ -30,32 +30,32 @@ tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>
 
 [[package]]
 name = "aw-client"
-version = "0.3.1"
+version = "0.5.0"
 description = "Client library for ActivityWatch"
 category = "main"
 optional = false
-python-versions = "^3.6"
+python-versions = "^3.7"
 develop = false
 
 [package.dependencies]
-aw-core = "branch master"
+aw-core = "^0.5"
 click = "^7.1.1"
-persist-queue = "^0.5.0"
+persist-queue = "^0.6.0"
 requests = "^2.22.0"
 
 [package.source]
 type = "git"
 url = "https://github.com/ActivityWatch/aw-client.git"
 reference = "master"
-resolved_reference = "eba55f3ce13cf63932fefd82aa78981bfa7d474c"
+resolved_reference = "2b18d1a5ac47321d67dba67a3ee16944d244aad1"
 
 [[package]]
 name = "aw-core"
-version = "0.4.2"
+version = "0.5.0"
 description = "Core library for ActivityWatch"
 category = "main"
 optional = false
-python-versions = "^3.6"
+python-versions = "^3.7"
 develop = false
 
 [package.dependencies]
@@ -66,7 +66,7 @@ peewee = "3.*"
 python-json-logger = "^0.1.11"
 strict-rfc3339 = "^0.7"
 TakeTheTime = "^0.3.1"
-timeslot = "branch master"
+timeslot = "*"
 
 [package.extras]
 mongo = ["pymongo (>=3.10.0,<4.0.0)"]
@@ -75,7 +75,7 @@ mongo = ["pymongo (>=3.10.0,<4.0.0)"]
 type = "git"
 url = "https://github.com/ActivityWatch/aw-core.git"
 reference = "master"
-resolved_reference = "81dcb64c4ad97cff4258d7e72ad2ff314ee62252"
+resolved_reference = "b11fbe08a0405dec01380493f7b3261163cc6878"
 
 [[package]]
 name = "certifi"
@@ -119,7 +119,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
 name = "importlib-metadata"
-version = "4.0.0"
+version = "4.0.1"
 description = "Read metadata from Python packages"
 category = "main"
 optional = false
@@ -204,7 +204,7 @@ python-versions = "*"
 
 [[package]]
 name = "persist-queue"
-version = "0.5.1"
+version = "0.6.0"
 description = "A thread-safe disk based persistent queue in Python."
 category = "main"
 optional = false
@@ -333,14 +333,7 @@ version = "0.1.2"
 description = "Data type for representing time slots with a start and end."
 category = "main"
 optional = false
-python-versions = "^3.6"
-develop = false
-
-[package.source]
-type = "git"
-url = "https://github.com/ErikBjare/timeslot.git"
-reference = "master"
-resolved_reference = "209bde9f1ad62c2c752c2d58a9ded953756aae76"
+python-versions = ">=3.6,<4.0"
 
 [[package]]
 name = "typed-ast"
@@ -386,7 +379,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pyt
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "e515d9f52774db9c278c0a6802961294aea07a7ffff433214a92c0919f585720"
+content-hash = "3c0cd90a79945593da3723f682a0be05f4e949f99d72f31b62a7e6b5d57c6105"
 
 [metadata.files]
 altgraph = [
@@ -423,8 +416,8 @@ idna = [
     {file = "idna-2.10.tar.gz", hash = "sha256:b307872f855b18632ce0c21c5e45be78c0ea7ae4c15c828c20788b26921eb3f6"},
 ]
 importlib-metadata = [
-    {file = "importlib_metadata-4.0.0-py3-none-any.whl", hash = "sha256:19192b88d959336bfa6bdaaaef99aeafec179eca19c47c804e555703ee5f07ef"},
-    {file = "importlib_metadata-4.0.0.tar.gz", hash = "sha256:2e881981c9748d7282b374b68e759c87745c25427b67ecf0cc67fb6637a1bff9"},
+    {file = "importlib_metadata-4.0.1-py3-none-any.whl", hash = "sha256:d7eb1dea6d6a6086f8be21784cc9e3bcfa55872b52309bc5fad53a8ea444465d"},
+    {file = "importlib_metadata-4.0.1.tar.gz", hash = "sha256:8c501196e49fb9df5df43833bdb1e4328f64847763ec8a50703148b73784d581"},
 ]
 iso8601 = [
     {file = "iso8601-0.1.14-py2.py3-none-any.whl", hash = "sha256:e7e1122f064d626e17d47cd5106bed2c620cb38fe464999e0ddae2b6d2de6004"},
@@ -470,8 +463,8 @@ peewee = [
     {file = "peewee-3.14.4.tar.gz", hash = "sha256:9e356b327c2eaec6dd42ecea6f4ddded025793dba906a3d065a0452e726c51a2"},
 ]
 persist-queue = [
-    {file = "persist-queue-0.5.1.tar.gz", hash = "sha256:27a44e6376bdaff1375f09ba6e14f633192cd2bdc593b948a752d80edea4d68c"},
-    {file = "persist_queue-0.5.1-py2.py3-none-any.whl", hash = "sha256:9e2890660305847609bcbfa814ce38229b3629ea98e6fd8fb858bf9533a98d83"},
+    {file = "persist-queue-0.6.0.tar.gz", hash = "sha256:e73dd62545d37e519247d96368bfa5c510fde66999a338d6d2d44790dc10f89b"},
+    {file = "persist_queue-0.6.0-py2.py3-none-any.whl", hash = "sha256:b7a6a6e642bed23076f03d15d08d87aebad32029f3e702cc10f5b86d6fbd0cb7"},
 ]
 pynput = [
     {file = "pynput-1.7.3-py2.py3-none-any.whl", hash = "sha256:fea5777454f896bd79d35393088cd29a089f3b2da166f0848a922b1d5a807d4f"},
@@ -526,7 +519,10 @@ strict-rfc3339 = [
 takethetime = [
     {file = "TakeTheTime-0.3.1.tar.gz", hash = "sha256:dbe30453a1b596a38f9e2e3fa8e1adc5af2dbf646ca0837ad5c2059a16fe2ff9"},
 ]
-timeslot = []
+timeslot = [
+    {file = "timeslot-0.1.2-py3-none-any.whl", hash = "sha256:2f8efaec7b0a4c1e56a92ec05533219332dd9d8b577539077664c233996911b5"},
+    {file = "timeslot-0.1.2.tar.gz", hash = "sha256:a2ac998657e3f3b9ca928757b4906add2c05390c5fc14ed792bb9028d08547b1"},
+]
 typed-ast = [
     {file = "typed_ast-1.4.3-cp35-cp35m-manylinux1_i686.whl", hash = "sha256:2068531575a125b87a41802130fa7e29f26c09a2833fea68d9a40cf33902eba6"},
     {file = "typed_ast-1.4.3-cp35-cp35m-manylinux1_x86_64.whl", hash = "sha256:c907f561b1e83e93fad565bac5ba9c22d96a54e7ea0267c708bffe863cbe4075"},
