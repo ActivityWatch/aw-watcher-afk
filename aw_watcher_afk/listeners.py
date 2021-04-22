@@ -1,24 +1,45 @@
+"""
+Listeners for aggregated keyboard and mouse events.
+
+This is used for AFK detection on Linux, as well as used in aw-watcher-input to track input activity in general.
+
+NOTE: Logging usage should be commented out before committed, for performance reasons.
+"""
+
 import logging
 import threading
+from abc import ABCMeta, abstractmethod
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
 
 
-class EventFactory:
+class EventFactory(metaclass=ABCMeta):
+    def __init__(self):
+        self.new_event = threading.Event()
+        self._reset_data()
+
+    @abstractmethod
+    def _reset_data(self):
+        raise NotImplementedError
+
     def next_event(self):
         """Returns an event and prepares the internal state so that it can start to build a new event"""
-        raise NotImplementedError
+        self.new_event.clear()
+        data = self.event_data
+        # self.logger.debug(f"Event: {data}")
+        self._reset_data()
+        return data
 
     def has_new_event(self):
-        raise NotImplementedError
+        return self.new_event.is_set()
 
 
 class KeyboardListener(EventFactory):
     def __init__(self):
+        EventFactory.__init__(self)
         self.logger = logger.getChild("keyboard")
-        # self.logger.setLevel(logging.DEBUG)
-        self.new_event = threading.Event()
-        self._reset_data()
 
     def start(self):
         from pynput import keyboard
@@ -30,36 +51,27 @@ class KeyboardListener(EventFactory):
         self.event_data = {"presses": 0}
 
     def on_press(self, key):
-        print("press", key)
-        self.logger.debug("Input received")
+        # self.logger.debug(f"Press: {key}")
         self.event_data["presses"] += 1
         self.new_event.set()
 
     def on_release(self, key):
-        print("release", key)
-
-    def next_event(self):
-        """Returns an event and prepares the internal state so that it can start to build a new event"""
-        self.new_event.clear()
-        data = self.event_data
-        print(data)
-        self._reset_data()
-        return data
-
-    def has_new_event(self):
-        return self.new_event.is_set()
+        # Don't count releases, only clicks
+        # self.logger.debug(f"Release: {key}")
+        pass
 
 
 class MouseListener(EventFactory):
     def __init__(self):
+        EventFactory.__init__(self)
         self.logger = logger.getChild("mouse")
-        self.logger.setLevel(logging.INFO)
-        self.new_event = threading.Event()
         self.pos = None
-        self._reset_data()
 
     def _reset_data(self):
-        self.event_data = {"clicks": 0, "deltaX": 0, "deltaY": 0}
+        self.event_data = defaultdict(int)
+        self.event_data.update(
+            {"clicks": 0, "deltaX": 0, "deltaY": 0, "scrollX": 0, "scrollY": 0}
+        )
 
     def start(self):
         from pynput import mouse
@@ -75,34 +87,22 @@ class MouseListener(EventFactory):
         if not self.pos:
             self.pos = newpos
 
-        delta = tuple(abs(self.pos[i] - newpos[i]) for i in range(2))
-        self.event_data["deltaX"] += delta[0]
-        self.event_data["deltaY"] += delta[1]
+        delta = tuple(self.pos[i] - newpos[i] for i in range(2))
+        self.event_data["deltaX"] += abs(delta[0])
+        self.event_data["deltaY"] += abs(delta[1])
 
         self.pos = newpos
         self.new_event.set()
 
-    def on_click(self, *args):
-        self.logger.debug(args)
-
-    def click(self, x, y, button, press):
-        # TODO: Differentiate between leftclick and rightclick?
-        if press:
-            self.logger.debug("Clicked mousebutton")
+    def on_click(self, x, y, button, down):
+        # self.logger.debug(f"Click: {button} at {(x, y)}")
+        # Only count presses, not releases
+        if down:
             self.event_data["clicks"] += 1
-        self.new_event.set()
+            self.new_event.set()
 
     def on_scroll(self, x, y, scrollx, scrolly):
-        self.logger.debug(f"{scrollx}, {scrolly} at {(x, y)}")
-
-    def has_new_event(self):
-        answer = self.new_event.is_set()
-        self.new_event.clear()
-        return answer
-
-    def next_event(self):
-        self.new_event.clear()
-        data = self.event_data
-        print(data)
-        self._reset_data()
-        return data
+        # self.logger.debug(f"Scroll: {scrollx}, {scrolly} at {(x, y)}")
+        self.event_data["scrollX"] += abs(scrollx)
+        self.event_data["scrollY"] += abs(scrolly)
+        self.new_event.set()
