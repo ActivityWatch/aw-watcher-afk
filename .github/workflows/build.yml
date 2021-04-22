@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-18.04, windows-latest, macOS-latest]
-        python_version: [3.7, 3.8, 3.9]
+        python_version: [3.7, 3.9]
     steps:
     - uses: actions/checkout@v2
       with:
@@ -42,7 +42,7 @@ jobs:
       shell: bash
       run: |
         source venv/bin/activate || source venv/Scripts/activate
-        pip install pyinstaller==4.1
+        pip install pyinstaller==4.3
         make package
     - name: Test package
       shell: bash
