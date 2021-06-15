@@ -27,9 +27,9 @@ logger = logging.getLogger(__name__)
 class Settings:
     def __init__(self, config_section):
         # Time without input before we're considering the user as AFK
-        self.timeout = config_section.getfloat("timeout")
+        self.timeout = config_section["timeout"]
         # How often we should poll for input activity
-        self.poll_time = config_section.getfloat("poll_time")
+        self.poll_time = config_section["poll_time"]
 
         assert self.timeout >= self.poll_time
 
@@ -41,7 +41,9 @@ class AFKWatcher:
         self.settings = Settings(watcher_config[configsection])
 
         self.client = ActivityWatchClient("aw-watcher-afk", testing=testing)
-        self.bucketname = "{}_{}".format(self.client.client_name, self.client.client_hostname)
+        self.bucketname = "{}_{}".format(
+            self.client.client_name, self.client.client_hostname
+        )
 
     def ping(self, afk: bool, timestamp: datetime, duration: float = 0):
         data = {"status": "afk" if afk else "not-afk"}
@@ -93,7 +95,9 @@ class AFKWatcher:
                 # Send a heartbeat if no state change was made
                 else:
                     if afk:
-                        self.ping(afk, timestamp=last_input, duration=seconds_since_input)
+                        self.ping(
+                            afk, timestamp=last_input, duration=seconds_since_input
+                        )
                     else:
                         self.ping(afk, timestamp=last_input)
 

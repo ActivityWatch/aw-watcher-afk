@@ -1,16 +1,13 @@
-from configparser import ConfigParser
-from aw_core.config import load_config
+from aw_core.config import load_config_toml
 
-default_settings = {
-    "timeout": "180",
-    "poll_time": "5",
-}
-default_testing_settings = {
-    "timeout": "20",
-    "poll_time": "1",
-}
+default_config = """
+[aw-watcher-afk]
+timeout = 180
+poll_time = 5
 
-default_config = ConfigParser()
-default_config['aw-watcher-afk'] = default_settings
-default_config['aw-watcher-afk-testing'] = default_testing_settings
-watcher_config = load_config("aw-watcher-afk", default_config)
+[aw-watcher-afk-testing]
+timeout = 20
+poll_time = 1
+""".strip()
+
+watcher_config = load_config_toml("aw-watcher-afk", default_config)
