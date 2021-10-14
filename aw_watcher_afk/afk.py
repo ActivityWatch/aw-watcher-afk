@@ -22,6 +22,7 @@ else:
 
 
 logger = logging.getLogger(__name__)
+td1ms = timedelta(milliseconds=1)
 
 
 class Settings:
@@ -85,13 +86,17 @@ class AFKWatcher:
                     logger.info("No longer AFK")
                     self.ping(afk, timestamp=last_input)
                     afk = False
-                    self.ping(afk, timestamp=last_input)
+                    # ping with timestamp+1ms with the next event (to ensure the latest event gets retreived by get_event)
+                    self.ping(afk, timestamp=last_input + td1ms)
                 # If becomes AFK
                 elif not afk and seconds_since_input >= self.settings.timeout:
                     logger.info("Became AFK")
                     self.ping(afk, timestamp=last_input)
                     afk = True
-                    self.ping(afk, timestamp=last_input, duration=seconds_since_input)
+                    # ping with timestamp+1ms with the next event (to ensure the latest event gets retreived by get_event)
+                    self.ping(
+                        afk, timestamp=last_input + td1ms, duration=seconds_since_input
+                    )
                 # Send a heartbeat if no state change was made
                 else:
                     if afk:
