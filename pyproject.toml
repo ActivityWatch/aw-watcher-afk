@@ -9,7 +9,7 @@ license = "MPL-2.0"
 aw-watcher-afk = "aw_watcher_afk:main"
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.8"
 aw-client = "^0.5"
 pyobjc-framework-Quartz = { version = "*", platform = "darwin" }
 python-xlib = { version = "*", platform = "linux" }
