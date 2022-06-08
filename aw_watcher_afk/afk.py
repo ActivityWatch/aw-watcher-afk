@@ -86,14 +86,14 @@ class AFKWatcher:
                     logger.info("No longer AFK")
                     self.ping(afk, timestamp=last_input)
                     afk = False
-                    # ping with timestamp+1ms with the next event (to ensure the latest event gets retreived by get_event)
+                    # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
                     self.ping(afk, timestamp=last_input + td1ms)
                 # If becomes AFK
                 elif not afk and seconds_since_input >= self.settings.timeout:
                     logger.info("Became AFK")
                     self.ping(afk, timestamp=last_input)
                     afk = True
-                    # ping with timestamp+1ms with the next event (to ensure the latest event gets retreived by get_event)
+                    # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
                     self.ping(
                         afk, timestamp=last_input + td1ms, duration=seconds_since_input
                     )
