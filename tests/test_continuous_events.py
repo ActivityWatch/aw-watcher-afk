@@ -1,8 +1,8 @@
 # Usage:
-#   python3 test_continous_events.py aw-watcher-afk-testing_{hostname}
+#   python3 test_continuous_events.py aw-watcher-afk-testing_{hostname}
 #
 # Example:
-#   python3 test_continous_events.py aw-watcher-afk-testing_erb-laptop-ubuntu
+#   python3 test_continuous_events.py aw-watcher-afk-testing_erb-laptop-ubuntu
 
 import sys
 from datetime import timedelta
