@@ -1,13 +1,14 @@
 import logging
 import platform
+import os
 from datetime import datetime, timedelta, timezone
 from time import sleep
-import os
+from typing import Optional
 
 from aw_core.models import Event
 from aw_client import ActivityWatchClient
 
-from .config import watcher_config
+from .config import load_config
 
 system = platform.system()
 
@@ -18,7 +19,7 @@ elif system == "Darwin":
 elif system == "Linux":
     from .unix import seconds_since_last_input
 else:
-    raise Exception("Unsupported platform: {}".format(system))
+    raise Exception(f"Unsupported platform: {system}")
 
 
 logger = logging.getLogger(__name__)
@@ -26,22 +27,25 @@ td1ms = timedelta(milliseconds=1)
 
 
 class Settings:
-    def __init__(self, config_section):
+    def __init__(self, config_section, timeout=None, poll_time=None):
         # Time without input before we're considering the user as AFK
-        self.timeout = config_section["timeout"]
+        self.timeout = timeout or config_section["timeout"]
         # How often we should poll for input activity
-        self.poll_time = config_section["poll_time"]
+        self.poll_time = poll_time or config_section["poll_time"]
 
         assert self.timeout >= self.poll_time
 
 
 class AFKWatcher:
-    def __init__(self, testing=False):
+    def __init__(self, args, testing=False):
         # Read settings from config
-        configsection = "aw-watcher-afk" if not testing else "aw-watcher-afk-testing"
-        self.settings = Settings(watcher_config[configsection])
+        self.settings = Settings(
+            load_config(testing), timeout=args.timeout, poll_time=args.poll_time
+        )
 
-        self.client = ActivityWatchClient("aw-watcher-afk", testing=testing)
+        self.client = ActivityWatchClient(
+            "aw-watcher-afk", host=args.host, port=args.port, testing=testing
+        )
         self.bucketname = "{}_{}".format(
             self.client.client_name, self.client.client_hostname
         )
