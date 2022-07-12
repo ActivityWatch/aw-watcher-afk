@@ -9,7 +9,7 @@ license = "MPL-2.0"
 aw-watcher-afk = "aw_watcher_afk:main"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.8,<3.11"
 aw-client = "^0.5"
 pyobjc-framework-Quartz = { version = "*", platform = "darwin" }
 python-xlib = { version = "*", platform = "linux" }
@@ -18,7 +18,7 @@ pynput = "*"
 [tool.poetry.dev-dependencies]
 mypy = "*"
 macholib = {version = "*", platform = "darwin"}
-pyinstaller = {version = "*", optional = true}
+pyinstaller = {version = "^5.2", optional = true}
 
 [build-system]
 requires = ["poetry>=0.12"]
