@@ -83,7 +83,7 @@ class AFKWatcher:
                 now = datetime.now(timezone.utc)
                 seconds_since_input = seconds_since_last_input()
                 last_input = now - timedelta(seconds=seconds_since_input)
-                logger.debug("Seconds since last input: {}".format(seconds_since_input))
+                logger.debug(f"Seconds since last input: {seconds_since_input}")
 
                 # If no longer AFK
                 if afk and seconds_since_input < self.settings.timeout:
