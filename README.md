@@ -3,7 +3,8 @@ aw-watcher-afk
 
 [![Build Status](https://github.com/ActivityWatch/aw-watcher-afk/workflows/Build/badge.svg)](https://github.com/ActivityWatch/aw-watcher-afk/actions)
 
-Watches your keyboard and mouse activity to determine if you are AFK or not
+Watches your keyboard and mouse activity to determine if you are AFK (away from keyboard) or not.
+By default, a period of at least 3 minutes inactivity is flagged as AFK.
 
 ## How to install
 
