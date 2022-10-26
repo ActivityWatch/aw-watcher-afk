@@ -1,5 +1,5 @@
-import sys
 import argparse
+import sys
 
 from aw_core.config import load_config_toml
 
@@ -28,7 +28,7 @@ def parse_args():
     default_timeout = config["timeout"]
 
     parser = argparse.ArgumentParser(
-        "A watcher for keyboard and mouse input to detect AFK state."
+        description="A watcher for keyboard and mouse input to detect AFK state."
     )
     parser.add_argument("--host", dest="host")
     parser.add_argument("--port", dest="port")
