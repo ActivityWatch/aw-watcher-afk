@@ -176,7 +176,7 @@ name = "future"
 version = "0.18.2"
 description = "Clean single-source support for Python 3 and 2"
 category = "dev"
-optional = true
+optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 files = [
     {file = "future-0.18.2.tar.gz", hash = "sha256:b1bead90b70cf6ec3f0710ae53a525360fa360d306a86583adc6bf83a4db537d"},
@@ -353,7 +353,7 @@ name = "pefile"
 version = "2022.5.30"
 description = "Python PE parsing module"
 category = "dev"
-optional = true
+optional = false
 python-versions = ">=3.6.0"
 files = [
     {file = "pefile-2022.5.30.tar.gz", hash = "sha256:a5488a3dd1fd021ce33f969780b88fe0f7eebb76eb20996d7318f307612a045b"},
@@ -394,7 +394,7 @@ name = "pyinstaller"
 version = "5.7.0"
 description = "PyInstaller bundles a Python application and all its dependencies into a single package."
 category = "dev"
-optional = true
+optional = false
 python-versions = "<3.12,>=3.7"
 files = [
     {file = "pyinstaller-5.7.0-py3-none-macosx_10_13_universal2.whl", hash = "sha256:b967ae71ab7b05e18608dbb4518da5afa54f0835927cb7a5ce52ab8fffed03b6"},
@@ -428,7 +428,7 @@ name = "pyinstaller-hooks-contrib"
 version = "2022.14"
 description = "Community maintained hooks for PyInstaller"
 category = "dev"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "pyinstaller-hooks-contrib-2022.14.tar.gz", hash = "sha256:5ae8da3a92cf20e37b3e00604d0c3468896e7d746e5c1449473597a724331b0b"},
@@ -603,7 +603,7 @@ name = "pywin32-ctypes"
 version = "0.2.0"
 description = ""
 category = "dev"
-optional = true
+optional = false
 python-versions = "*"
 files = [
     {file = "pywin32-ctypes-0.2.0.tar.gz", hash = "sha256:24ffc3b341d457d48e8922352130cf2644024a4ff09762a2261fd34c36ee5942"},
@@ -652,7 +652,7 @@ name = "setuptools"
 version = "65.6.3"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 category = "dev"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "setuptools-65.6.3-py3-none-any.whl", hash = "sha256:57f6f22bde4e042978bcd50176fdb381d7c21a9efa4041202288d3737a0c6a54"},
@@ -797,4 +797,4 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8,<3.11"
-content-hash = "911ff816f5283cfdb186195f2234c0c1289218490390f4076e4df7a90560153e"
+content-hash = "67795a9e23ea07c53a20aa1e71e3c8eec42fd316897a7e3fb8e076a466ce7e56"

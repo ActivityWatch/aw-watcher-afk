@@ -18,7 +18,7 @@ pynput = "*"
 [tool.poetry.dev-dependencies]
 mypy = "*"
 macholib = {version = "*", platform = "darwin"}
-pyinstaller = {version = "^5.2", optional = true}
+pyinstaller = {version = "^5.2"}
 
 [build-system]
 requires = ["poetry-core"]
