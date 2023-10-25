@@ -1,22 +1,25 @@
 import logging
-import platform
 import os
+import platform
 from datetime import datetime, timedelta, timezone
 from time import sleep
 
-from aw_core.models import Event
 from aw_client import ActivityWatchClient
+from aw_core.models import Event
 
 from .config import load_config
 
 system = platform.system()
 
 if system == "Windows":
-    from .windows import seconds_since_last_input
+    # noreorder
+    from .windows import seconds_since_last_input  # fmt: skip
 elif system == "Darwin":
-    from .macos import seconds_since_last_input
+    # noreorder
+    from .macos import seconds_since_last_input  # fmt: skip
 elif system == "Linux":
-    from .unix import seconds_since_last_input
+    # noreorder
+    from .unix import seconds_since_last_input  # fmt: skip
 else:
     raise Exception(f"Unsupported platform: {system}")
 
