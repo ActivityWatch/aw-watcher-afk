@@ -1,4 +1,3 @@
-import logging
 from Quartz.CoreGraphics import (CGEventSourceSecondsSinceLastEventType,
                                  kCGEventSourceStateHIDSystemState,
                                  kCGAnyInputEventType)

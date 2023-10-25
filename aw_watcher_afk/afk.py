@@ -3,7 +3,6 @@ import platform
 import os
 from datetime import datetime, timedelta, timezone
 from time import sleep
-from typing import Optional
 
 from aw_core.models import Event
 from aw_client import ActivityWatchClient

@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from time import sleep
 
 from .listeners import KeyboardListener, MouseListener
 
@@ -25,8 +26,8 @@ class LastInputUnix:
             self.logger.debug("New event")
             self.last_activity = now
             # Get/clear events
-            mouse_event = self.mouseListener.next_event()
-            keyboard_event = self.keyboardListener.next_event()
+            self.mouseListener.next_event()
+            self.keyboardListener.next_event()
         return (now - self.last_activity).total_seconds()
 
 
@@ -43,8 +44,6 @@ def seconds_since_last_input():
 
 
 if __name__ == "__main__":
-    from time import sleep
-
     while True:
         sleep(1)
         print(seconds_since_last_input())

@@ -1,26 +1,22 @@
-import time
-
 import ctypes
-from ctypes import Structure, POINTER, WINFUNCTYPE, windll  # type: ignore
-from ctypes.wintypes import BOOL, UINT, DWORD  # type: ignore
+import time
+from ctypes import POINTER, WINFUNCTYPE, Structure
+from ctypes.wintypes import BOOL, DWORD, UINT
 
 
 class LastInputInfo(Structure):
-    _fields_ = [
-        ("cbSize", UINT),
-        ("dwTime", DWORD)
-    ]
+    _fields_ = [("cbSize", UINT), ("dwTime", DWORD)]
 
 
 def _getLastInputTick() -> int:
     prototype = WINFUNCTYPE(BOOL, POINTER(LastInputInfo))
-    paramflags = ((1, "lastinputinfo"), )
+    paramflags = ((1, "lastinputinfo"),)
     c_GetLastInputInfo = prototype(("GetLastInputInfo", ctypes.windll.user32), paramflags)  # type: ignore
 
-    l = LastInputInfo()
-    l.cbSize = ctypes.sizeof(LastInputInfo)
-    assert 0 != c_GetLastInputInfo(l)
-    return l.dwTime
+    lastinput = LastInputInfo()
+    lastinput.cbSize = ctypes.sizeof(LastInputInfo)
+    assert 0 != c_GetLastInputInfo(lastinput)
+    return lastinput.dwTime
 
 
 def _getTickCount() -> int:
