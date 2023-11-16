@@ -106,8 +106,12 @@ class AFKWatcher:
                 # Send a heartbeat if no state change was made
                 else:
                     if afk:
+                        # we need the +1ms here too, to make sure we don't "miss" the last heartbeat
+                        # (if last_input hasn't changed)
                         self.ping(
-                            afk, timestamp=last_input, duration=seconds_since_input
+                            afk,
+                            timestamp=last_input + td1ms,
+                            duration=seconds_since_input,
                         )
                     else:
                         self.ping(afk, timestamp=last_input)
