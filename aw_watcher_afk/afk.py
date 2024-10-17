@@ -62,7 +62,7 @@ class AFKWatcher:
         logger.info("aw-watcher-afk started")
 
         # Initialization
-        sleep(1)
+        self.client.wait_for_server()
 
         eventtype = "afkstatus"
         self.client.create_bucket(self.bucketname, eventtype, queued=True)
