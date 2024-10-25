@@ -90,7 +90,7 @@ class AFKWatcher:
                 logger.debug(f"Lock screen shown: {showing_lock_screen}")
 
                 # If no longer AFK
-                if afk and (seconds_since_input < self.settings.timeout or not showing_lock_screen):
+                if afk and seconds_since_input < self.settings.timeout:
                     logger.info("No longer AFK")
                     self.ping(afk, timestamp=last_input)
                     afk = False
