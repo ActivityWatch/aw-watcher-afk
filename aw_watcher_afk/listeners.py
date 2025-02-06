@@ -6,104 +6,111 @@ This is used for AFK detection on Linux, as well as used in aw-watcher-input to 
 NOTE: Logging usage should be commented out before committed, for performance reasons.
 """
 
-import logging
-import threading
+
+"""
+Listeners for aggregated keyboard and mouse events.
+
+This is used for AFK detection on Linux, as well as used in aw-watcher-input to track input activity in general.
+
+NOTE: Logging usage should be commented out before committed, for performance reasons.
+"""
+
 from abc import ABCMeta, abstractmethod
-from collections import defaultdict
-from typing import Dict, Any
+import os
+import platform
 
-logger = logging.getLogger(__name__)
-# logger.setLevel(logging.DEBUG)
-
-
-class EventFactory(metaclass=ABCMeta):
-    def __init__(self) -> None:
-        self.new_event = threading.Event()
-        self._reset_data()
+class BaseEventFactory(metaclass=ABCMeta):
 
     @abstractmethod
-    def _reset_data(self) -> None:
-        self.event_data: Dict[str, Any] = {}
-
-    def next_event(self) -> dict:
+    def next_event(self):
         """Returns an event and prepares the internal state so that it can start to build a new event"""
-        self.new_event.clear()
-        data = self.event_data
+        raise NotImplementedError
+
+    @abstractmethod
+    def start(self):
+        """Starts monitoring events in the background"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def has_new_event(self) -> bool:
+        """Has new event data"""
+        raise NotImplementedError
+
+class MergedListenerHelper(BaseEventFactory):
+
+    """Merging events from keyboard and mouse instances that are started separately"""
+
+    keyboard: BaseEventFactory
+    mouse: BaseEventFactory
+
+    def __init__(self, keyboard, mouse) -> None:
+        self.keyboard = keyboard
+        self.mouse = mouse
+
+    def start(self):
+        self.mouse.start()
+        self.keyboard.start()
+
+    def next_event(self):
+        data = dict(**self.keyboard.next_event(), **self.mouse.next_event())
         # self.logger.debug(f"Event: {data}")
-        self._reset_data()
         return data
 
-    def has_new_event(self) -> bool:
-        return self.new_event.is_set()
+    def has_new_event(self):
+        return self.keyboard.has_new_event() or self.mouse.has_new_event()
 
+def env_true(envvar):
+    return os.getenv(envvar) == "true"
 
-class KeyboardListener(EventFactory):
-    def __init__(self):
-        EventFactory.__init__(self)
-        self.logger = logger.getChild("keyboard")
+system = platform.system()
 
-    def start(self):
-        from pynput import keyboard
+def use_evdev():
+    return system == "Linux" and os.getenv("USE_EVDEV") == "true"
 
-        listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
-        listener.start()
+def use_libinput():
+    return system == "Linux" and os.getenv("USE_LIBINPUT") == "true"
 
-    def _reset_data(self):
-        self.event_data = {"presses": 0}
+def KeyboardListener():
 
-    def on_press(self, key):
-        # self.logger.debug(f"Press: {key}")
-        self.event_data["presses"] += 1
-        self.new_event.set()
+    if use_evdev():
+        from .listeners_evdev import KeyboardListener
+    elif use_libinput():
+        from .listeners_libinput import KeyboardListener
+    else:
+        from .listeners_pynput import KeyboardListener
 
-    def on_release(self, key):
-        # Don't count releases, only clicks
-        # self.logger.debug(f"Release: {key}")
-        pass
+    return KeyboardListener()
 
+def MouseListener():
 
-class MouseListener(EventFactory):
-    def __init__(self):
-        EventFactory.__init__(self)
-        self.logger = logger.getChild("mouse")
-        self.pos = None
+    if use_evdev():
+        from .listeners_evdev import MouseListener
+    elif use_libinput():
+        from .listeners_libinput import MouseListener
+    else:
+        from .listeners_pynput import MouseListener
 
-    def _reset_data(self):
-        self.event_data = defaultdict(int)
-        self.event_data.update(
-            {"clicks": 0, "deltaX": 0, "deltaY": 0, "scrollX": 0, "scrollY": 0}
-        )
+    return MouseListener()
 
-    def start(self):
-        from pynput import mouse
+def MergedListener():
 
-        listener = mouse.Listener(
-            on_move=self.on_move, on_click=self.on_click, on_scroll=self.on_scroll
-        )
-        listener.start()
+    if use_evdev():
+        from .listeners_evdev import MergedListener
+    elif use_libinput():
+        from .listeners_libinput import MergedListener
+    else:
+        from .listeners_pynput import MergedListener
 
-    def on_move(self, x, y):
-        newpos = (x, y)
-        # self.logger.debug("Moved mouse to: {},{}".format(x, y))
-        if not self.pos:
-            self.pos = newpos
+    return MergedListener()
 
-        delta = tuple(self.pos[i] - newpos[i] for i in range(2))
-        self.event_data["deltaX"] += abs(delta[0])
-        self.event_data["deltaY"] += abs(delta[1])
+def main_test_helper(listener):
 
-        self.pos = newpos
-        self.new_event.set()
+    listener.start()
 
-    def on_click(self, x, y, button, down):
-        # self.logger.debug(f"Click: {button} at {(x, y)}")
-        # Only count presses, not releases
-        if down:
-            self.event_data["clicks"] += 1
-            self.new_event.set()
+    while True:
 
-    def on_scroll(self, x, y, scrollx, scrolly):
-        # self.logger.debug(f"Scroll: {scrollx}, {scrolly} at {(x, y)}")
-        self.event_data["scrollX"] += abs(scrollx)
-        self.event_data["scrollY"] += abs(scrolly)
-        self.new_event.set()
+        if listener.has_new_event():
+            print(listener.next_event())
+
+if __name__ == "__main__":
+    main_test_helper(MergedListener())
