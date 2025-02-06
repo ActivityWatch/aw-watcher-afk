@@ -9,7 +9,8 @@ license = "MPL-2.0"
 aw-watcher-afk = "aw_watcher_afk:main"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+#see: https://github.com/moses-palmer/pynput/issues/614
+python = "^3.8,<3.13" # pynput needs <3.13
 aw-client = "^0.5.14"
 pyobjc-framework-Quartz = { version = "*", platform = "darwin" }
 pynput = "*"
