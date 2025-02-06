@@ -59,9 +59,6 @@ class MergedListenerHelper(BaseEventFactory):
     def has_new_event(self):
         return self.keyboard.has_new_event() or self.mouse.has_new_event()
 
-def env_true(envvar):
-    return os.getenv(envvar) == "true"
-
 system = platform.system()
 
 def use_evdev():

@@ -66,10 +66,28 @@ class DataListener(AsyncioListener, Generic[TData]):
     def __init__(self) -> None:
         self.data = self._init_data()
 
+    async def reconnect_wait(self):
+        await asyncio.sleep(2)
+
     @abstractmethod
     async def _read_loop(self, dev):
         """Read data from a device"""
         raise NotImplementedError
+
+    async def _read_loop_reconnect(self, dev):
+
+        """Update self.data by reading evdev events"""
+
+        while True:
+            try:
+                dev = InputDevice(dev)
+                logger.debug(f"Connected to {dev.name}")
+                await self._read_loop(dev)
+            except OSError as e:
+                logger.warning(f"Device {dev.path} disconnected: {e}")
+                await self.reconnect_wait()
+            except Exception as e:
+                logger.error(f"Unexpected error in event loop: {e}", exc_info=True)
 
     @abstractmethod
     def _init_data(self) -> TData:
@@ -85,7 +103,7 @@ class DataListener(AsyncioListener, Generic[TData]):
         devices = list(self._find_devices())
         assert len(devices), "You may need to add your user to the 'input' group"
         for dev in devices:
-            loop.create_task(self._read_loop(dev))
+            loop.create_task(self._read_loop_reconnect(dev))
 
     def run(self):
         loop = asyncio.new_event_loop()
@@ -135,10 +153,6 @@ class KeyboardListener(DataListener[KeyboardData]):
 
     async def _read_loop(self, dev):
 
-        """Update self.data by reading evdev events"""
-
-        dev = InputDevice(dev)
-
         async for event in dev.async_read_loop():
             # logger.debug(f"Evdev event ({dev.name}): {evdev.categorize(event)}")
             if event.type == ecodes.EV_KEY and event.value == 1:
@@ -185,8 +199,6 @@ class MouseListener(DataListener[MouseData]):
     async def _read_loop(self, dev):
 
         """Update self.data by reading evdev events"""
-
-        dev = InputDevice(dev)
 
         old_x = None
         old_y = None
