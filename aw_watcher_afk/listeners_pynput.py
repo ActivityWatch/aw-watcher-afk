@@ -8,11 +8,11 @@ NOTE: Logging usage should be commented out before committed, for performance re
 
 import logging
 import threading
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from collections import defaultdict
 from typing import Dict, Any
 
-from .listeners import BaseEventFactory, MergedListenerHelper, main_test_helper
+from .listeners_base import BaseEventFactory, main_test
 
 logger = logging.getLogger(__name__)
 # logger.setLevel(logging.DEBUG)
@@ -110,8 +110,30 @@ class MouseListener(EventFactory):
         self.event_data["scrollY"] += abs(scrolly)
         self.new_event.set()
 
-def MergedListener():
-    return MergedListenerHelper(KeyboardListener(), MouseListener())
+class MergedListener(BaseEventFactory):
+
+    """Merges events from keyboard and mouse listeners that start() seperately"""
+
+    keyboard: BaseEventFactory
+    mouse: BaseEventFactory
+
+    def __init__(self) -> None:
+        self.keyboard = KeyboardListener()
+        self.mouse = MouseListener()
+
+    def start(self):
+        """Starts monitoring events in both listeners"""
+        self.mouse.start()
+        self.keyboard.start()
+
+    def next_event(self):
+        """Merges results"""
+        data = dict(**self.keyboard.next_event(), **self.mouse.next_event())
+        # self.logger.debug(f"Event: {data}")
+        return data
+
+    def has_new_event(self):
+        return self.keyboard.has_new_event() or self.mouse.has_new_event()
 
 if __name__ == "__main__":
-    main_test_helper(MergedListener())
+    main_test(MergedListener())

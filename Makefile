@@ -6,6 +6,10 @@ ifeq ($(USE_EVDEV),true)
 	POETRY_EXTRAS := $(POETRY_EXTRAS) use_evdev
 endif
 
+# ifeq ($(USE_LIBINPUT),true)
+# 	POETRY_EXTRAS := $(POETRY_EXTRAS) use_libinput
+# endif
+
 build:
 	poetry install --extras "$(POETRY_EXTRAS)"
 

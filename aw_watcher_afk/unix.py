@@ -2,13 +2,13 @@ import logging
 from datetime import datetime
 from time import sleep
 
-from .listeners import MergedListener
-
 
 class LastInputUnix:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         # self.logger.setLevel(logging.DEBUG)
+
+        from .listeners import MergedListener
 
         self.listener = MergedListener()
 
