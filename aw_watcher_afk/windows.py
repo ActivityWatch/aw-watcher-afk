@@ -26,6 +26,11 @@ def _getTickCount() -> int:
     return c_GetTickCount()
 
 
+def lock_screen_shown() -> bool:
+    # TODO: Windows implementation
+    return False
+
+
 def seconds_since_last_input():
     seconds_since_input = (_getTickCount() - _getLastInputTick()) / 1000
     return seconds_since_input
@@ -34,4 +39,4 @@ def seconds_since_last_input():
 if __name__ == "__main__":
     while True:
         time.sleep(1)
-        print(seconds_since_last_input())
+        print(seconds_since_last_input(), lock_screen_shown())
