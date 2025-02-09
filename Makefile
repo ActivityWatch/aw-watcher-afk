@@ -1,7 +1,17 @@
 .PHONY: build test package clean
 
+POETRY_EXTRAS =
+
+ifeq ($(USE_EVDEV),true)
+	POETRY_EXTRAS := $(POETRY_EXTRAS) use_evdev
+endif
+
+# ifeq ($(USE_LIBINPUT),true)
+# 	POETRY_EXTRAS := $(POETRY_EXTRAS) use_libinput
+# endif
+
 build:
-	poetry install
+	poetry install --extras "$(POETRY_EXTRAS)"
 
 test:
 	poetry run aw-watcher-afk --help  # Ensures that it at least starts
