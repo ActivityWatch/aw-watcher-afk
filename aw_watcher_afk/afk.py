@@ -1,6 +1,8 @@
 import logging
 import os
 import platform
+import subprocess
+
 from datetime import datetime, timedelta, timezone
 from time import sleep
 
@@ -27,6 +29,15 @@ else:
 logger = logging.getLogger(__name__)
 td1ms = timedelta(milliseconds=1)
 
+def get_logged_in_user():
+    try:
+        user = subprocess.check_output("who | awk '{print $1}' | head -n 1", shell=True).decode().strip()
+        if not user:
+            raise Exception("No logged in user found")
+        return user
+    except Exception as e:
+        logger.error(f"Failed to get logged in user: {e}")
+        return "unknown"
 
 class Settings:
     def __init__(self, config_section, timeout=None, poll_time=None):
@@ -44,12 +55,12 @@ class AFKWatcher:
         self.settings = Settings(
             load_config(testing), timeout=args.timeout, poll_time=args.poll_time
         )
-
+        username = get_logged_in_user()
         self.client = ActivityWatchClient(
             "aw-watcher-afk", host=args.host, port=args.port, testing=testing
         )
-        self.bucketname = "{}_{}".format(
-            self.client.client_name, self.client.client_hostname
+        self.bucketname = "{}-afk_{}".format(
+            username, self.client.client_hostname
         )
 
     def ping(self, afk: bool, timestamp: datetime, duration: float = 0):
