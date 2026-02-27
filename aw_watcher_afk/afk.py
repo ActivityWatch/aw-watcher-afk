@@ -52,6 +52,9 @@ class AFKWatcher:
             self.client.client_name, self.client.client_hostname
         )
 
+        # Store initial parent PID for orphan detection
+        self._initial_ppid = os.getppid()
+
     def ping(self, afk: bool, timestamp: datetime, duration: float = 0):
         data = {"status": "afk" if afk else "not-afk"}
         e = Event(timestamp=timestamp, duration=duration, data=data)
@@ -75,11 +78,11 @@ class AFKWatcher:
         afk = False
         while True:
             try:
-                if system in ["Darwin", "Linux"] and os.getppid() == 1:
-                    # TODO: This won't work with PyInstaller which starts a bootloader process which will become the parent.
-                    #       There is a solution however.
-                    #       See: https://github.com/ActivityWatch/aw-qt/issues/19#issuecomment-316741125
-                    logger.info("afkwatcher stopped because parent process died")
+                if system in ["Darwin", "Linux"] and os.getppid() != self._initial_ppid:
+                    logger.info(
+                        "afkwatcher stopped because parent process died "
+                        f"(ppid changed from {self._initial_ppid} to {os.getppid()})"
+                    )
                     break
 
                 now = datetime.now(timezone.utc)
