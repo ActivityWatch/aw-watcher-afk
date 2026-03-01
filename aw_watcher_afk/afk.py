@@ -13,13 +13,13 @@ system = platform.system()
 
 if system == "Windows":
     # noreorder
-    from .windows import seconds_since_last_input  # fmt: skip
+    from .windows import seconds_since_last_input, lock_screen_shown  # fmt: skip
 elif system == "Darwin":
     # noreorder
-    from .macos import seconds_since_last_input  # fmt: skip
+    from .macos import seconds_since_last_input, lock_screen_shown  # fmt: skip
 elif system == "Linux":
     # noreorder
-    from .unix import seconds_since_last_input  # fmt: skip
+    from .unix import seconds_since_last_input, lock_screen_shown  # fmt: skip
 else:
     raise Exception(f"Unsupported platform: {system}")
 
@@ -87,8 +87,10 @@ class AFKWatcher:
 
                 now = datetime.now(timezone.utc)
                 seconds_since_input = seconds_since_last_input()
+                showing_lock_screen = lock_screen_shown()
                 last_input = now - timedelta(seconds=seconds_since_input)
                 logger.debug(f"Seconds since last input: {seconds_since_input}")
+                logger.debug(f"Lock screen shown: {showing_lock_screen}")
 
                 # If no longer AFK
                 if afk and seconds_since_input < self.settings.timeout:
@@ -98,7 +100,7 @@ class AFKWatcher:
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
                     self.ping(afk, timestamp=last_input + td1ms)
                 # If becomes AFK
-                elif not afk and seconds_since_input >= self.settings.timeout:
+                elif not afk and (seconds_since_input >= self.settings.timeout or (showing_lock_screen and seconds_since_input >= 5)):
                     logger.info("Became AFK")
                     self.ping(afk, timestamp=last_input)
                     afk = True

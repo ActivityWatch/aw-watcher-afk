@@ -43,7 +43,12 @@ def seconds_since_last_input():
     return _last_input_unix.seconds_since_last_input()
 
 
+def lock_screen_shown() -> bool:
+    # TODO: Linux implementation
+    return False
+
+
 if __name__ == "__main__":
     while True:
         sleep(1)
-        print(seconds_since_last_input())
+        print(seconds_since_last_input(), lock_screen_shown())
