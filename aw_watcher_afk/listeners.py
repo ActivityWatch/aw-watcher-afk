@@ -41,12 +41,18 @@ class KeyboardListener(EventFactory):
     def __init__(self):
         EventFactory.__init__(self)
         self.logger = logger.getChild("keyboard")
+        self._listener = None
 
     def start(self):
         from pynput import keyboard
 
-        listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
-        listener.start()
+        self._listener = keyboard.Listener(
+            on_press=self.on_press, on_release=self.on_release
+        )
+        self._listener.start()
+
+    def is_alive(self) -> bool:
+        return self._listener is not None and self._listener.is_alive()
 
     def _reset_data(self):
         self.event_data = {"presses": 0}
@@ -67,6 +73,7 @@ class MouseListener(EventFactory):
         EventFactory.__init__(self)
         self.logger = logger.getChild("mouse")
         self.pos = None
+        self._listener = None
 
     def _reset_data(self):
         self.event_data = defaultdict(int)
@@ -77,10 +84,13 @@ class MouseListener(EventFactory):
     def start(self):
         from pynput import mouse
 
-        listener = mouse.Listener(
+        self._listener = mouse.Listener(
             on_move=self.on_move, on_click=self.on_click, on_scroll=self.on_scroll
         )
-        listener.start()
+        self._listener.start()
+
+    def is_alive(self) -> bool:
+        return self._listener is not None and self._listener.is_alive()
 
     def on_move(self, x, y):
         newpos = (x, y)
