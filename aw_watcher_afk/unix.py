@@ -43,10 +43,24 @@ class LastInputUnix:
 
         See: https://github.com/ActivityWatch/aw-watcher-afk/issues/27
         """
-        if not self.mouseListener.is_alive() or not self.keyboardListener.is_alive():
-            self.logger.warning(
-                "Input listeners died (X server restart?), reinitializing..."
-            )
+        # Only restart the gamepad listener if it was actually running before
+        # and all its threads died (e.g. device unplugged). Without this guard,
+        # systems without a gamepad would trigger a restart on every poll,
+        # since is_alive() is always False when start() returned early.
+        gamepad_died = self.gamepadListener.needs_restart()
+        if (
+            not self.mouseListener.is_alive()
+            or not self.keyboardListener.is_alive()
+            or gamepad_died
+        ):
+            if gamepad_died:
+                self.logger.warning(
+                    "Gamepad listener died (device removed?), reinitializing..."
+                )
+            else:
+                self.logger.warning(
+                    "Input listeners died (X server restart?), reinitializing..."
+                )
             # Stop any still-running listeners before creating new ones
             # to avoid duplicate listener instances (e.g. if only one died)
             self._stop_listeners()

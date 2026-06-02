@@ -144,6 +144,10 @@ class GamepadListener(EventFactory):
         self._threads: List[threading.Thread] = []
         self._devices = []  # track open devices for cleanup in stop()
         self._stop_event = threading.Event()
+        # True once start() has actually spawned at least one reader thread.
+        # Used by callers to distinguish "no gamepad ever attached" (don't
+        # restart) from "gamepad threads died after running" (do restart).
+        self._was_started = False
 
     def _reset_data(self):
         self.event_data = {"buttons": 0}
@@ -183,6 +187,7 @@ class GamepadListener(EventFactory):
             )
             t.start()
             self._threads.append(t)
+        self._was_started = True
 
     def stop(self):
         self._stop_event.set()
@@ -198,9 +203,21 @@ class GamepadListener(EventFactory):
         for t in self._threads:
             t.join(timeout=2.0)
         self._threads.clear()
+        self._was_started = False
 
     def is_alive(self) -> bool:
         return any(t.is_alive() for t in self._threads)
+
+    def needs_restart(self) -> bool:
+        """Return True if start() previously launched threads but they have all died.
+
+        Used to distinguish a system that simply has no gamepad attached (in
+        which case start() returned early and no restart is needed) from one
+        where all reader threads have exited unexpectedly (e.g. device removed
+        or USB error). In the latter case the caller should reinitialize the
+        listener so a reconnected gamepad starts being tracked again.
+        """
+        return self._was_started and not self.is_alive()
 
     # ------------------------------------------------------------------
     # Internals

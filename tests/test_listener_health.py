@@ -63,6 +63,9 @@ def test_unix_reinitializes_dead_listeners(MockGamepad, MockMouse, MockKeyboard)
     mock_kb_instance.is_alive.return_value = True
     mock_mouse_instance.is_alive.return_value = True
     mock_gamepad_instance.is_alive.return_value = False  # no gamepad connected
+    # No gamepad attached → needs_restart() should be False so we don't
+    # reinitialize every poll on gamepad-less systems.
+    mock_gamepad_instance.needs_restart.return_value = False
     mock_kb_instance.has_new_event.return_value = False
     mock_mouse_instance.has_new_event.return_value = False
     mock_gamepad_instance.has_new_event.return_value = False
@@ -175,6 +178,7 @@ def test_unix_gamepad_event_resets_afk_timer(MockGamepad, MockMouse, MockKeyboar
     mock_kb_instance.is_alive.return_value = True
     mock_mouse_instance.is_alive.return_value = True
     mock_gamepad_instance.is_alive.return_value = True
+    mock_gamepad_instance.needs_restart.return_value = False
 
     # No keyboard/mouse events, but gamepad has an event
     mock_kb_instance.has_new_event.return_value = False
@@ -188,3 +192,114 @@ def test_unix_gamepad_event_resets_afk_timer(MockGamepad, MockMouse, MockKeyboar
     assert seconds < 1.0
     # Event was consumed
     mock_gamepad_instance.next_event.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# GamepadListener.needs_restart()
+# ---------------------------------------------------------------------------
+
+
+def test_gamepad_needs_restart_false_before_start():
+    """needs_restart() must be False before start() so we don't try to restart
+    a listener that was never running (e.g. on systems with no gamepad)."""
+    listener = GamepadListener()
+    assert not listener.needs_restart()
+
+
+def test_gamepad_needs_restart_false_when_start_was_noop():
+    """If start() returns early (no evdev / no devices), needs_restart() must
+    stay False to avoid an infinite restart loop on gamepad-less systems."""
+    listener = GamepadListener()
+    with patch.object(listener, "_find_gamepads", return_value=[]):
+        listener.start()
+    assert not listener.is_alive()
+    assert not listener.needs_restart()
+
+
+def test_gamepad_needs_restart_true_when_threads_died():
+    """After start() spawned threads, needs_restart() should flip to True once
+    all reader threads have exited (e.g. device unplugged)."""
+    import sys
+    from unittest.mock import MagicMock
+
+    listener = GamepadListener()
+
+    mock_device = MagicMock()
+    mock_device.path = "/dev/input/event5"
+    mock_device.name = "Xbox Controller"
+
+    mock_evdev = MagicMock()
+    with (
+        patch.dict(sys.modules, {"evdev": mock_evdev}),
+        patch.object(listener, "_find_gamepads", return_value=[mock_device]),
+        patch.object(listener, "_read_events"),  # returns immediately
+    ):
+        listener.start()
+
+    # Wait for the (no-op) reader thread to exit
+    for t in listener._threads:
+        t.join(timeout=2.0)
+
+    assert not listener.is_alive()
+    assert listener.needs_restart()
+
+
+def test_gamepad_needs_restart_false_after_stop():
+    """After an explicit stop(), needs_restart() must be False so the caller
+    doesn't keep recreating a listener the user wanted shut down."""
+    import sys
+    from unittest.mock import MagicMock
+
+    listener = GamepadListener()
+
+    mock_device = MagicMock()
+    mock_device.path = "/dev/input/event5"
+    mock_device.name = "Xbox Controller"
+
+    mock_evdev = MagicMock()
+    with (
+        patch.dict(sys.modules, {"evdev": mock_evdev}),
+        patch.object(listener, "_find_gamepads", return_value=[mock_device]),
+        patch.object(listener, "_read_events"),
+    ):
+        listener.start()
+    listener.stop()
+    assert not listener.needs_restart()
+
+
+@patch("aw_watcher_afk.unix.KeyboardListener")
+@patch("aw_watcher_afk.unix.MouseListener")
+@patch("aw_watcher_afk.unix.GamepadListener")
+def test_unix_restarts_when_only_gamepad_dies(MockGamepad, MockMouse, MockKeyboard):
+    """If the gamepad listener dies but mouse/keyboard are still alive, the
+    listeners should still be reinitialized so a reconnected gamepad starts
+    being tracked again (regression for the original bug)."""
+    from aw_watcher_afk.unix import LastInputUnix
+
+    mock_kb = MockKeyboard.return_value
+    mock_mouse = MockMouse.return_value
+    mock_gamepad = MockGamepad.return_value
+
+    mock_kb.is_alive.return_value = True
+    mock_mouse.is_alive.return_value = True
+    mock_gamepad.is_alive.return_value = True
+    mock_gamepad.needs_restart.return_value = False
+    mock_kb.has_new_event.return_value = False
+    mock_mouse.has_new_event.return_value = False
+    mock_gamepad.has_new_event.return_value = False
+
+    unix = LastInputUnix()
+    unix.seconds_since_last_input()
+
+    assert MockGamepad.call_count == 1  # not restarted yet
+
+    # Now simulate the gamepad dying while mouse/keyboard stay alive
+    mock_gamepad.is_alive.return_value = False
+    mock_gamepad.needs_restart.return_value = True
+
+    unix.seconds_since_last_input()
+
+    # All listeners should have been recreated
+    assert MockKeyboard.call_count == 2
+    assert MockMouse.call_count == 2
+    assert MockGamepad.call_count == 2
