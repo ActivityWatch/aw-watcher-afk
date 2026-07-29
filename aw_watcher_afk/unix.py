@@ -108,7 +108,12 @@ def seconds_since_last_input():
     return _last_input_unix.seconds_since_last_input()
 
 
+def is_screen_locked() -> bool:
+    # TODO: Linux implementation (e.g. logind LockedHint / DBus screensaver)
+    return False
+
+
 if __name__ == "__main__":
     while True:
         sleep(1)
-        print(seconds_since_last_input())
+        print(seconds_since_last_input(), is_screen_locked())
