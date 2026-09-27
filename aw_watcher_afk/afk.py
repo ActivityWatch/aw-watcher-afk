@@ -117,12 +117,18 @@ class AFKWatcher:
                     seconds_since_input >= self.settings.timeout or locked
                 ):
                     logger.info("Became AFK" + (" (screen locked)" if locked else ""))
-                    self.ping(afk, timestamp=last_input)
+                    # When the lock is the trigger and HID idle is still below
+                    # the timeout, AFK starts at lock detection, not last_input,
+                    # so pre-lock (unlocked) idle time isn't counted as AFK.
+                    lock_triggered = (
+                        locked and seconds_since_input < self.settings.timeout
+                    )
+                    afk_start = now if lock_triggered else last_input
+                    afk_duration = 0.0 if lock_triggered else seconds_since_input
+                    self.ping(afk, timestamp=afk_start)
                     afk = True
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
-                    self.ping(
-                        afk, timestamp=last_input + td1ms, duration=seconds_since_input
-                    )
+                    self.ping(afk, timestamp=afk_start + td1ms, duration=afk_duration)
                 # Send a heartbeat if no state change was made
                 else:
                     if afk:
