@@ -3,6 +3,7 @@ import os
 import platform
 from datetime import datetime, timedelta, timezone
 from time import sleep
+from typing import Optional
 
 from aw_client import ActivityWatchClient
 from aw_core.models import Event
@@ -76,6 +77,8 @@ class AFKWatcher:
 
     def heartbeat_loop(self):
         afk = False
+        # When the current AFK period started (set on each transition to AFK)
+        afk_start: Optional[datetime] = None
         while True:
             try:
                 if system in ["Darwin", "Linux"] and os.getppid() != self._initial_ppid:
@@ -108,6 +111,7 @@ class AFKWatcher:
                 # If no longer AFK
                 if afk and not locked and seconds_since_input < self.settings.timeout:
                     logger.info("No longer AFK")
+                    afk_start = None
                     self.ping(afk, timestamp=last_input)
                     afk = False
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
@@ -134,10 +138,15 @@ class AFKWatcher:
                     if afk:
                         # we need the +1ms here too, to make sure we don't "miss" the last heartbeat
                         # (if last_input hasn't changed)
+                        # Anchor on the AFK start, not last_input: after a
+                        # lock-triggered transition last_input predates the
+                        # lock, and an earlier-starting heartbeat wouldn't
+                        # merge into the AFK event but be stored separately.
+                        start = afk_start or last_input
                         self.ping(
                             afk,
-                            timestamp=last_input + td1ms,
-                            duration=seconds_since_input,
+                            timestamp=start + td1ms,
+                            duration=(now - start).total_seconds(),
                         )
                     else:
                         self.ping(afk, timestamp=last_input)
