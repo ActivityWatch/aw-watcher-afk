@@ -3,6 +3,7 @@ import os
 import platform
 from datetime import datetime, timedelta, timezone
 from time import sleep
+from typing import Optional
 
 from aw_client import ActivityWatchClient
 from aw_core.models import Event
@@ -13,13 +14,13 @@ system = platform.system()
 
 if system == "Windows":
     # noreorder
-    from .windows import seconds_since_last_input  # fmt: skip
+    from .windows import seconds_since_last_input, is_screen_locked  # fmt: skip
 elif system == "Darwin":
     # noreorder
-    from .macos import seconds_since_last_input  # fmt: skip
+    from .macos import seconds_since_last_input, is_screen_locked  # fmt: skip
 elif system == "Linux":
     # noreorder
-    from .unix import seconds_since_last_input  # fmt: skip
+    from .unix import seconds_since_last_input, is_screen_locked  # fmt: skip
 else:
     raise Exception(f"Unsupported platform: {system}")
 
@@ -76,6 +77,8 @@ class AFKWatcher:
 
     def heartbeat_loop(self):
         afk = False
+        # When the current AFK period started (set on each transition to AFK)
+        afk_start: Optional[datetime] = None
         while True:
             try:
                 if system in ["Darwin", "Linux"] and os.getppid() != self._initial_ppid:
@@ -97,34 +100,53 @@ class AFKWatcher:
                     )
                     sleep(self.settings.poll_time)
                     continue
+                locked = is_screen_locked()
                 last_input = now - timedelta(seconds=seconds_since_input)
                 logger.debug(f"Seconds since last input: {seconds_since_input}")
+                logger.debug(f"Screen locked: {locked}")
 
+                # Screen lock means the user is away even if HID idle time is
+                # low (e.g. mouse jiggle, background audio). While locked we
+                # must not transition back to not-afk based on synthetic input.
                 # If no longer AFK
-                if afk and seconds_since_input < self.settings.timeout:
+                if afk and not locked and seconds_since_input < self.settings.timeout:
                     logger.info("No longer AFK")
+                    afk_start = None
                     self.ping(afk, timestamp=last_input)
                     afk = False
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
                     self.ping(afk, timestamp=last_input + td1ms)
                 # If becomes AFK
-                elif not afk and seconds_since_input >= self.settings.timeout:
-                    logger.info("Became AFK")
-                    self.ping(afk, timestamp=last_input)
+                elif not afk and (
+                    seconds_since_input >= self.settings.timeout or locked
+                ):
+                    logger.info("Became AFK" + (" (screen locked)" if locked else ""))
+                    # When the lock is the trigger and HID idle is still below
+                    # the timeout, AFK starts at lock detection, not last_input,
+                    # so pre-lock (unlocked) idle time isn't counted as AFK.
+                    lock_triggered = (
+                        locked and seconds_since_input < self.settings.timeout
+                    )
+                    afk_start = now if lock_triggered else last_input
+                    afk_duration = 0.0 if lock_triggered else seconds_since_input
+                    self.ping(afk, timestamp=afk_start)
                     afk = True
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
-                    self.ping(
-                        afk, timestamp=last_input + td1ms, duration=seconds_since_input
-                    )
+                    self.ping(afk, timestamp=afk_start + td1ms, duration=afk_duration)
                 # Send a heartbeat if no state change was made
                 else:
                     if afk:
                         # we need the +1ms here too, to make sure we don't "miss" the last heartbeat
                         # (if last_input hasn't changed)
+                        # Anchor on the AFK start, not last_input: after a
+                        # lock-triggered transition last_input predates the
+                        # lock, and an earlier-starting heartbeat wouldn't
+                        # merge into the AFK event but be stored separately.
+                        start = afk_start or last_input
                         self.ping(
                             afk,
-                            timestamp=last_input + td1ms,
-                            duration=seconds_since_input,
+                            timestamp=start + td1ms,
+                            duration=(now - start).total_seconds(),
                         )
                     else:
                         self.ping(afk, timestamp=last_input)

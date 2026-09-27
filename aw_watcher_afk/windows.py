@@ -30,6 +30,11 @@ def _getTickCount64() -> int:
     return c_GetTickCount64()
 
 
+def is_screen_locked() -> bool:
+    # TODO: Windows implementation (e.g. WTSQuerySessionInformation)
+    return False
+
+
 def seconds_since_last_input() -> float:
     tick_count = _getTickCount64()
     last_input_tick = _getLastInputTick()  # 32-bit DWORD from GetLastInputInfo
@@ -51,4 +56,4 @@ def seconds_since_last_input() -> float:
 if __name__ == "__main__":
     while True:
         time.sleep(1)
-        print(seconds_since_last_input())
+        print(seconds_since_last_input(), is_screen_locked())
