@@ -1,4 +1,6 @@
 import logging
+import os
+import subprocess
 from datetime import datetime
 from time import sleep
 
@@ -108,9 +110,49 @@ def seconds_since_last_input():
     return _last_input_unix.seconds_since_last_input()
 
 
+logger = logging.getLogger(__name__)
+
+# Set to False once we know loginctl isn't installed (non-systemd systems),
+# so we stop spawning a process on every poll.
+_loginctl_available = True
+
+
 def is_screen_locked() -> bool:
-    # TODO: Linux implementation (e.g. logind LockedHint / DBus screensaver)
-    return False
+    """Return True if the logind session reports the screen as locked.
+
+    Reads the session's ``LockedHint`` property, which desktop environments
+    and lockers set via logind when the screen locks (GNOME, KDE Plasma, and
+    others). Lockers that don't set it (e.g. plain i3lock) are not detected.
+
+    Uses ``$XDG_SESSION_ID`` if set, else logind's ``auto`` session (the
+    caller's session, or the user's display session). Returns False when the
+    state can't be determined, which keeps the old behaviour.
+    """
+    global _loginctl_available
+
+    if not _loginctl_available:
+        return False
+
+    session = os.environ.get("XDG_SESSION_ID") or "auto"
+    try:
+        result = subprocess.run(
+            ["loginctl", "show-session", session, "-p", "LockedHint", "--value"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except FileNotFoundError:
+        logger.info("loginctl not found, screen lock detection disabled")
+        _loginctl_available = False
+        return False
+    except (OSError, subprocess.TimeoutExpired) as e:
+        logger.debug(f"Failed to query screen lock state: {e}")
+        return False
+
+    if result.returncode != 0:
+        logger.debug(f"loginctl failed: {result.stderr.strip()}")
+        return False
+    return result.stdout.strip() == "yes"
 
 
 if __name__ == "__main__":
