@@ -37,6 +37,23 @@ class EventFactory(metaclass=ABCMeta):
         return self.new_event.is_set()
 
 
+def _key_identity(key):
+    """Return a stable identity for a key across press/release events.
+
+    pynput's ``KeyCode`` equality and hash are based on its ``repr`` (the
+    character if set, otherwise the virtual key code), so the press and release
+    of the same physical key can yield objects that compare unequal — e.g. a
+    character key pressed with a modifier may carry a different ``char`` on
+    release. Prefer the platform virtual key code, which is stable for a given
+    physical key; fall back to the key itself for keys without one (e.g. the
+    ``Key`` enum members used for modifiers).
+    """
+    vk = getattr(key, "vk", None)
+    if vk is not None:
+        return ("vk", vk)
+    return key
+
+
 class KeyboardListener(EventFactory):
     def __init__(self):
         EventFactory.__init__(self)
@@ -59,6 +76,9 @@ class KeyboardListener(EventFactory):
     def stop(self):
         if self._listener is not None:
             self._listener.stop()
+        # A stopped listener may have missed key releases, and its successor
+        # would otherwise inherit a stale "held" state.
+        self._held_keys.clear()
 
     def is_alive(self) -> bool:
         return self._listener is not None and self._listener.is_alive()
@@ -70,8 +90,9 @@ class KeyboardListener(EventFactory):
         # self.logger.debug(f"Press: {key}")
         # Auto-repeat fires on_press repeatedly for a held key; only count the
         # first press of each key until it is released.
-        if key not in self._held_keys:
-            self._held_keys.add(key)
+        identity = _key_identity(key)
+        if identity not in self._held_keys:
+            self._held_keys.add(identity)
             self.event_data["presses"] += 1
         # Signal activity regardless of auto-repeat, so AFK detection still
         # sees a held key as input.
@@ -80,7 +101,7 @@ class KeyboardListener(EventFactory):
     def on_release(self, key):
         # Don't count releases, only presses
         # self.logger.debug(f"Release: {key}")
-        self._held_keys.discard(key)
+        self._held_keys.discard(_key_identity(key))
 
     def has_new_event(self) -> bool:
         # A held key is ongoing activity even though auto-repeat presses are
