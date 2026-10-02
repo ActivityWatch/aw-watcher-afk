@@ -42,6 +42,11 @@ class KeyboardListener(EventFactory):
         EventFactory.__init__(self)
         self.logger = logger.getChild("keyboard")
         self._listener = None
+        # Keys currently held down. The OS auto-repeats a held key as repeated
+        # on_press calls; this set lets us count each physical press once until
+        # the key is released. It is intentionally not cleared by _reset_data(),
+        # since it tracks physical key state rather than a single event window.
+        self._held_keys: set = set()
 
     def start(self):
         from pynput import keyboard
@@ -63,13 +68,26 @@ class KeyboardListener(EventFactory):
 
     def on_press(self, key):
         # self.logger.debug(f"Press: {key}")
-        self.event_data["presses"] += 1
+        # Auto-repeat fires on_press repeatedly for a held key; only count the
+        # first press of each key until it is released.
+        if key not in self._held_keys:
+            self._held_keys.add(key)
+            self.event_data["presses"] += 1
+        # Signal activity regardless of auto-repeat, so AFK detection still
+        # sees a held key as input.
         self.new_event.set()
 
     def on_release(self, key):
-        # Don't count releases, only clicks
+        # Don't count releases, only presses
         # self.logger.debug(f"Release: {key}")
-        pass
+        self._held_keys.discard(key)
+
+    def has_new_event(self) -> bool:
+        # A held key is ongoing activity even though auto-repeat presses are
+        # de-duplicated from the count. Without this, holding a modifier or a
+        # game key (which may not auto-repeat at all) would let the user be
+        # marked AFK while still holding a key down.
+        return super().has_new_event() or bool(self._held_keys)
 
 
 class MouseListener(EventFactory):
