@@ -11,18 +11,33 @@ def completed(stdout="", returncode=0, stderr=""):
     )
 
 
+FAILED = completed(returncode=1, stderr="Failed to get path for session")
+TIMEOUT = subprocess.TimeoutExpired("loginctl", 2)
+
+
 class UnixScreenLockTests(unittest.TestCase):
     def setUp(self):
-        unix._loginctl_available = True
-        unix._last_locked = False
-        unix._consecutive_failures = 0
-        unix._warned_persistent_failure = False
+        self._reset()
 
     def tearDown(self):
+        self._reset()
+
+    @staticmethod
+    def _reset():
         unix._loginctl_available = True
         unix._last_locked = False
-        unix._consecutive_failures = 0
-        unix._warned_persistent_failure = False
+        unix._failing_since = None
+
+    def _run_at(self, outcomes_by_time):
+        """Call is_screen_locked() once per (time, outcome) pair, return results."""
+        results = []
+        for now, outcome in outcomes_by_time:
+            with (
+                patch("aw_watcher_afk.unix.monotonic", return_value=now),
+                patch("aw_watcher_afk.unix.subprocess.run", side_effect=[outcome]),
+            ):
+                results.append(unix.is_screen_locked())
+        return results
 
     def test_locked_hint_yes_is_locked(self):
         with patch(
@@ -37,9 +52,12 @@ class UnixScreenLockTests(unittest.TestCase):
             self.assertFalse(unix.is_screen_locked())
 
     def test_uses_xdg_session_id(self):
-        with patch.dict("os.environ", {"XDG_SESSION_ID": "c2"}), patch(
-            "aw_watcher_afk.unix.subprocess.run", return_value=completed("no\n")
-        ) as run:
+        with (
+            patch.dict("os.environ", {"XDG_SESSION_ID": "c2"}),
+            patch(
+                "aw_watcher_afk.unix.subprocess.run", return_value=completed("no\n")
+            ) as run,
+        ):
             unix.is_screen_locked()
         self.assertEqual(
             run.call_args.args[0],
@@ -47,106 +65,91 @@ class UnixScreenLockTests(unittest.TestCase):
         )
 
     def test_falls_back_to_auto_session(self):
-        with patch.dict("os.environ", {}, clear=True), patch(
-            "aw_watcher_afk.unix.subprocess.run", return_value=completed("no\n")
-        ) as run:
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch(
+                "aw_watcher_afk.unix.subprocess.run", return_value=completed("no\n")
+            ) as run,
+        ):
             unix.is_screen_locked()
         self.assertEqual(run.call_args.args[0][2], "auto")
 
-    def test_loginctl_error_is_unlocked(self):
+    def test_loginctl_error_with_no_prior_state_is_unlocked(self):
         # e.g. "Caller does not belong to any known session"
-        failed = completed(returncode=1, stderr="Failed to get path for session")
-        with patch("aw_watcher_afk.unix.subprocess.run", return_value=failed):
+        with patch("aw_watcher_afk.unix.subprocess.run", return_value=FAILED):
             self.assertFalse(unix.is_screen_locked())
         self.assertTrue(unix._loginctl_available)
 
-    def test_timeout_is_unlocked(self):
-        with patch(
-            "aw_watcher_afk.unix.subprocess.run",
-            side_effect=subprocess.TimeoutExpired("loginctl", 2),
-        ):
+    def test_timeout_with_no_prior_state_is_unlocked(self):
+        with patch("aw_watcher_afk.unix.subprocess.run", side_effect=TIMEOUT):
             self.assertFalse(unix.is_screen_locked())
 
     def test_failure_while_locked_keeps_locked(self):
-        failed = completed(returncode=1, stderr="Failed to get path for session")
-        with patch(
-            "aw_watcher_afk.unix.subprocess.run",
-            side_effect=[
-                completed("yes\n"),
-                failed,
-                subprocess.TimeoutExpired("loginctl", 2),
-                completed("no\n"),
-            ],
-        ):
-            self.assertEqual(
-                [unix.is_screen_locked() for _ in range(4)], [True, True, True, False]
-            )
+        # Brief failures (error exit or timeout) must not read as an unlock.
+        results = self._run_at(
+            [
+                (0, completed("yes\n")),
+                (5, FAILED),
+                (10, TIMEOUT),
+                (15, completed("no\n")),
+            ]
+        )
+        self.assertEqual(results, [True, True, True, False])
 
-    def test_persistent_failure_while_locked_keeps_locked(self):
-        # A confirmed lock must survive sustained query failures: returning
-        # False would let a failure read as an unlock and could split the
-        # locked AFK interval. Recovery only happens on a successful query.
-        failed = completed(returncode=1, stderr="Failed to get path for session")
-        with patch(
-            "aw_watcher_afk.unix.subprocess.run",
-            side_effect=[
-                completed("yes\n"),
-                failed,
-                failed,
-                failed,
-                failed,
-                completed("no\n"),
-            ],
-        ):
-            self.assertEqual(
-                [unix.is_screen_locked() for _ in range(6)],
-                [True, True, True, True, True, False],
+    def test_sustained_failure_while_locked_falls_back_to_unlocked(self):
+        # A confirmed lock that can't be re-confirmed for the trust window must
+        # not pin the watcher AFK after the user has unlocked.
+        limit = unix._LOCK_STATE_TRUST_SECONDS
+        with self.assertLogs("aw_watcher_afk.unix", level="WARNING") as cm:
+            results = self._run_at(
+                [
+                    (0, completed("yes\n")),
+                    (10, FAILED),
+                    (10 + limit - 1, FAILED),
+                    (10 + limit, FAILED),
+                    (10 + limit + 5, FAILED),
+                ]
             )
-
-    def test_success_resets_failure_counter(self):
-        # Intermittent failures must not accumulate across successful queries.
-        failed = completed(returncode=1, stderr="Failed to get path for session")
-        with patch(
-            "aw_watcher_afk.unix.subprocess.run",
-            side_effect=[
-                completed("yes\n"),
-                failed,
-                completed("yes\n"),
-                failed,
-                failed,
-                failed,
-                failed,
-            ],
-        ):
-            self.assertEqual(
-                [unix.is_screen_locked() for _ in range(7)],
-                [True, True, True, True, True, True, True],
-            )
-
-    def test_persistent_failures_warn_once(self):
-        # A broken logind must not produce a warning on every poll.
-        failed = completed(returncode=1, stderr="Failed to get path for session")
-        with (
-            patch("aw_watcher_afk.unix.subprocess.run", return_value=failed),
-            self.assertLogs("aw_watcher_afk.unix", level="WARNING") as cm,
-        ):
-            for _ in range(10):
-                unix.is_screen_locked()
+        self.assertEqual(results, [True, True, True, False, False])
         self.assertEqual(len(cm.output), 1)
-        self.assertIn("keeping the last confirmed screen-lock state", cm.output[0])
+        self.assertIn("no longer trusting", cm.output[0])
 
-    def test_persistent_failure_after_unlock_stays_unlocked(self):
-        # Failures never synthesise a lock either: the last confirmed state is
-        # returned, so an unlocked user is not reported AFK.
-        failed = completed(returncode=1, stderr="Failed to get path for session")
-        with patch(
-            "aw_watcher_afk.unix.subprocess.run",
-            side_effect=[completed("no\n")] + [failed] * 5,
-        ):
-            self.assertEqual(
-                [unix.is_screen_locked() for _ in range(6)],
-                [False, False, False, False, False, False],
+    def test_success_after_sustained_failure_recovers(self):
+        limit = unix._LOCK_STATE_TRUST_SECONDS
+        with self.assertLogs("aw_watcher_afk.unix", level="WARNING"):
+            results = self._run_at(
+                [
+                    (0, completed("yes\n")),
+                    (10, FAILED),
+                    (10 + limit, FAILED),
+                    (10 + limit + 5, completed("yes\n")),
+                ]
             )
+        # Locked again once loginctl answers, and the failure streak is reset.
+        self.assertEqual(results, [True, True, False, True])
+        self.assertIsNone(unix._failing_since)
+
+    def test_success_resets_failure_window(self):
+        # Intermittent failures must not accumulate across successful queries.
+        limit = unix._LOCK_STATE_TRUST_SECONDS
+        results = self._run_at(
+            [
+                (0, completed("yes\n")),
+                (10, FAILED),
+                (20, completed("yes\n")),
+                (30, FAILED),
+                (30 + limit - 1, FAILED),
+            ]
+        )
+        self.assertEqual(results, [True] * 5)
+
+    def test_failures_after_unlock_stay_unlocked(self):
+        # Failures never synthesise a lock either: an unlocked user is not
+        # reported AFK, however long loginctl keeps failing.
+        results = self._run_at(
+            [(0, completed("no\n"))] + [(t, FAILED) for t in (10, 400, 800)]
+        )
+        self.assertEqual(results, [False] * 4)
 
     def test_missing_loginctl_disables_further_checks(self):
         with patch(
@@ -155,6 +158,12 @@ class UnixScreenLockTests(unittest.TestCase):
             self.assertFalse(unix.is_screen_locked())
             self.assertFalse(unix.is_screen_locked())
         self.assertEqual(run.call_count, 1)
+
+    def test_missing_loginctl_does_not_keep_a_stale_lock(self):
+        unix._last_locked = True
+        with patch("aw_watcher_afk.unix.subprocess.run", side_effect=FileNotFoundError):
+            self.assertFalse(unix.is_screen_locked())
+        self.assertFalse(unix.is_screen_locked())
 
 
 if __name__ == "__main__":

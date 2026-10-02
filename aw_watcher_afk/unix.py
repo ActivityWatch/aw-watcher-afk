@@ -2,7 +2,8 @@ import logging
 import os
 import subprocess
 from datetime import datetime
-from time import sleep
+from time import monotonic, sleep
+from typing import Optional
 
 from .listeners import GamepadListener, KeyboardListener, MouseListener
 
@@ -116,44 +117,40 @@ logger = logging.getLogger(__name__)
 # so we stop spawning a process on every poll.
 _loginctl_available = True
 # Last state loginctl confirmed. A failed query returns this instead of
-# False, so a failure while locked doesn't read as an unlock.
+# False, so a brief failure while locked doesn't read as an unlock.
 _last_locked = False
-# Consecutive failed queries. Used only to log a single warning when a
-# failure streak becomes sustained, instead of warning on every poll.
-_consecutive_failures = 0
-_MAX_CONSECUTIVE_FAILURES = 3
-# Whether we have already warned about the current failure streak.
-_warned_persistent_failure = False
+# When the current streak of failed queries began (time.monotonic()), or None
+# if the last query succeeded.
+_failing_since: Optional[float] = None
+# How long the last confirmed lock state is trusted while queries keep failing.
+# Long enough to ride out a logind restart or a slow bus, short enough that a
+# lock that can no longer be re-confirmed can't pin the watcher AFK forever
+# after the user has unlocked and resumed activity.
+_LOCK_STATE_TRUST_SECONDS = 300.0
 
 
 def _after_failed_query() -> bool:
     """Return the screen-lock state to report after a failed loginctl query.
 
-    A failed query must not report an unlock: only a *successful* query can
-    clear a confirmed locked state. Reporting ``False`` here could make the
-    watcher emit a false ``not-afk`` transition while the screen is actually
-    locked (e.g. synthetic input keeping HID idle below the AFK timeout),
-    splitting the locked AFK interval. So the last confirmed state is kept
-    until loginctl answers again.
-
-    The failure streak is bounded only for logging: one warning is emitted
-    when the streak first becomes sustained, then debug-level messages, so a
-    permanently broken logind cannot flood the log. Recovery is automatic on
-    the first successful query.
+    A short failure streak keeps the last confirmed state, so a blip while
+    locked doesn't emit a false ``not-afk`` transition and split the locked AFK
+    interval. Once the streak has lasted ``_LOCK_STATE_TRUST_SECONDS`` the
+    confirmed lock can no longer be trusted: we log one warning and fall back to
+    unlocked, so real activity can bring the watcher back from AFK. Recovery is
+    automatic on the first successful query.
     """
-    global _consecutive_failures, _warned_persistent_failure
+    global _last_locked, _failing_since
 
-    _consecutive_failures += 1
-    if (
-        _consecutive_failures > _MAX_CONSECUTIVE_FAILURES
-        and not _warned_persistent_failure
-    ):
-        _warned_persistent_failure = True
+    now = monotonic()
+    if _failing_since is None:
+        _failing_since = now
+    if _last_locked and now - _failing_since >= _LOCK_STATE_TRUST_SECONDS:
         logger.warning(
-            "loginctl has failed %d times in a row; keeping the last "
-            "confirmed screen-lock state until a query succeeds",
-            _consecutive_failures,
+            "loginctl has been failing for %.0fs; no longer trusting the last "
+            "confirmed locked state",
+            now - _failing_since,
         )
+        _last_locked = False
     return _last_locked
 
 
@@ -166,15 +163,14 @@ def is_screen_locked() -> bool:
 
     Uses ``$XDG_SESSION_ID`` if set, else logind's ``auto`` session (the
     caller's session, or the user's display session). If a query fails, the
-    last state loginctl confirmed is returned (False if there is none yet),
-    so a failure while locked doesn't read as an unlock. The check recovers
-    on the first successful query.
+    last confirmed state is returned (False if there is none yet) for up to
+    ``_LOCK_STATE_TRUST_SECONDS``, after which it falls back to unlocked. The
+    check recovers on the first successful query.
     """
-    global _loginctl_available, _last_locked, _consecutive_failures
-    global _warned_persistent_failure
+    global _loginctl_available, _last_locked, _failing_since
 
     if not _loginctl_available:
-        return _last_locked
+        return False
 
     session = os.environ.get("XDG_SESSION_ID") or "auto"
     try:
@@ -187,7 +183,8 @@ def is_screen_locked() -> bool:
     except FileNotFoundError:
         logger.info("loginctl not found, screen lock detection disabled")
         _loginctl_available = False
-        return _last_locked
+        _last_locked = False
+        return False
     except (OSError, subprocess.TimeoutExpired) as e:
         logger.debug(f"Failed to query screen lock state: {e}")
         return _after_failed_query()
@@ -195,8 +192,7 @@ def is_screen_locked() -> bool:
     if result.returncode != 0:
         logger.debug(f"loginctl failed: {result.stderr.strip()}")
         return _after_failed_query()
-    _consecutive_failures = 0
-    _warned_persistent_failure = False
+    _failing_since = None
     _last_locked = result.stdout.strip() == "yes"
     return _last_locked
 
