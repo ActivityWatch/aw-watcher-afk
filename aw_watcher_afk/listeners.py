@@ -8,6 +8,7 @@ NOTE: Logging usage should be commented out before committed, for performance re
 
 import logging
 import threading
+import time
 from abc import ABCMeta, abstractmethod
 from collections import defaultdict
 from typing import Dict, Any, List
@@ -37,11 +38,50 @@ class EventFactory(metaclass=ABCMeta):
         return self.new_event.is_set()
 
 
+def _key_identity(key):
+    """Return a stable identity for a key across press/release events.
+
+    pynput's ``KeyCode`` equality and hash are based on its ``repr`` (the
+    character if set, otherwise the virtual key code), so the press and release
+    of the same physical key can yield objects that compare unequal — e.g. a
+    character key pressed with a modifier may carry a different ``char`` on
+    release. Prefer the platform virtual key code, which is stable for a given
+    physical key; fall back to the key itself for keys without one (e.g. the
+    ``Key`` enum members used for modifiers).
+    """
+    vk = getattr(key, "vk", None)
+    if vk is not None:
+        return ("vk", vk)
+    char = getattr(key, "char", None)
+    if char is not None:
+        return ("char", char)
+    return key
+
+
+# A key release can be missed in practice (e.g. the keyboard is disconnected or
+# a KVM switch is flipped while a key is held), and a held key is treated as
+# ongoing activity. Without an upper bound, a single missed release would pin
+# the AFK watcher to "not AFK" until it is restarted. A key that has not
+# produced a press for this long is treated as released: an auto-repeating key
+# refreshes this on every repeat, so only non-repeating keys (modifiers) can be
+# affected, and only after a hold far longer than any plausible intentional one.
+_HELD_KEY_MAX_AGE = 300.0  # seconds
+
+
 class KeyboardListener(EventFactory):
     def __init__(self):
         EventFactory.__init__(self)
         self.logger = logger.getChild("keyboard")
         self._listener = None
+        # Keys currently held down, mapped to the monotonic time of their last
+        # press. The OS auto-repeats a held key as repeated on_press calls; this
+        # map lets us count each physical press once until the key is released.
+        # It is intentionally not cleared by _reset_data(), since it tracks
+        # physical key state rather than a single event window. pynput runs the
+        # callbacks on its own thread while has_new_event() is polled from the
+        # main thread, so every access is guarded by _held_keys_lock.
+        self._held_keys: Dict[Any, float] = {}
+        self._held_keys_lock = threading.Lock()
 
     def start(self):
         from pynput import keyboard
@@ -54,6 +94,10 @@ class KeyboardListener(EventFactory):
     def stop(self):
         if self._listener is not None:
             self._listener.stop()
+        # A stopped listener may have missed key releases, and its successor
+        # would otherwise inherit a stale "held" state.
+        with self._held_keys_lock:
+            self._held_keys.clear()
 
     def is_alive(self) -> bool:
         return self._listener is not None and self._listener.is_alive()
@@ -63,13 +107,43 @@ class KeyboardListener(EventFactory):
 
     def on_press(self, key):
         # self.logger.debug(f"Press: {key}")
-        self.event_data["presses"] += 1
+        # Auto-repeat fires on_press repeatedly for a held key; only count the
+        # first press of each key until it is released.
+        identity = _key_identity(key)
+        with self._held_keys_lock:
+            first_press = identity not in self._held_keys
+            # Refresh on every repeat so a genuinely held auto-repeating key
+            # never looks stale; only non-repeating keys rely on on_release.
+            self._held_keys[identity] = time.monotonic()
+        if first_press:
+            self.event_data["presses"] += 1
+        # Signal activity regardless of auto-repeat, so AFK detection still
+        # sees a held key as input.
         self.new_event.set()
 
     def on_release(self, key):
-        # Don't count releases, only clicks
+        # Don't count releases, only presses
         # self.logger.debug(f"Release: {key}")
-        pass
+        with self._held_keys_lock:
+            self._held_keys.pop(_key_identity(key), None)
+
+    def has_new_event(self) -> bool:
+        # A held key is ongoing activity even though auto-repeat presses are
+        # de-duplicated from the count. Without this, holding a modifier or a
+        # game key (which may not auto-repeat at all) would let the user be
+        # marked AFK while still holding a key down.
+        if super().has_new_event():
+            return True
+        with self._held_keys_lock:
+            if not self._held_keys:
+                return False
+            # Drop keys whose release was missed, so a stuck entry cannot pin
+            # the user to "not AFK" indefinitely.
+            cutoff = time.monotonic() - _HELD_KEY_MAX_AGE
+            stale = [k for k, at in self._held_keys.items() if at < cutoff]
+            for identity in stale:
+                del self._held_keys[identity]
+            return bool(self._held_keys)
 
 
 class MouseListener(EventFactory):
