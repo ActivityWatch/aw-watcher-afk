@@ -118,6 +118,32 @@ _loginctl_available = True
 # Last state loginctl confirmed. A failed query returns this instead of
 # False, so a transient failure while locked doesn't read as an unlock.
 _last_locked = False
+# Consecutive failed queries. A sustained failure must not pin the watcher
+# in the locked state forever, so past _MAX_CONSECUTIVE_FAILURES we stop
+# trusting the stale locked state.
+_consecutive_failures = 0
+_MAX_CONSECUTIVE_FAILURES = 3
+
+
+def _after_failed_query() -> bool:
+    """Return the screen-lock state to report after a failed loginctl query.
+
+    Transient failures keep the last confirmed state so a blip while locked
+    doesn't read as an unlock. A persistent failure, however, must not pin
+    the watcher in the locked state forever: after more than
+    ``_MAX_CONSECUTIVE_FAILURES`` in a row we fall back to "not locked" and
+    let the watcher's normal idle-based AFK detection take over.
+    """
+    global _consecutive_failures
+
+    _consecutive_failures += 1
+    if _consecutive_failures > _MAX_CONSECUTIVE_FAILURES:
+        logger.warning(
+            "loginctl failed %d times in a row; falling back to unlocked",
+            _consecutive_failures,
+        )
+        return False
+    return _last_locked
 
 
 def is_screen_locked() -> bool:
@@ -129,9 +155,11 @@ def is_screen_locked() -> bool:
 
     Uses ``$XDG_SESSION_ID`` if set, else logind's ``auto`` session (the
     caller's session, or the user's display session). If a query fails, the
-    last confirmed state is returned (False if there is none yet).
+    last confirmed state is returned for up to ``_MAX_CONSECUTIVE_FAILURES``
+    consecutive failures (False if there is none yet), after which a
+    persistent failure falls back to "not locked".
     """
-    global _loginctl_available, _last_locked
+    global _loginctl_available, _last_locked, _consecutive_failures
 
     if not _loginctl_available:
         return False
@@ -150,11 +178,12 @@ def is_screen_locked() -> bool:
         return False
     except (OSError, subprocess.TimeoutExpired) as e:
         logger.debug(f"Failed to query screen lock state: {e}")
-        return _last_locked
+        return _after_failed_query()
 
     if result.returncode != 0:
         logger.debug(f"loginctl failed: {result.stderr.strip()}")
-        return _last_locked
+        return _after_failed_query()
+    _consecutive_failures = 0
     _last_locked = result.stdout.strip() == "yes"
     return _last_locked
 

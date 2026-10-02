@@ -15,10 +15,12 @@ class UnixScreenLockTests(unittest.TestCase):
     def setUp(self):
         unix._loginctl_available = True
         unix._last_locked = False
+        unix._consecutive_failures = 0
 
     def tearDown(self):
         unix._loginctl_available = True
         unix._last_locked = False
+        unix._consecutive_failures = 0
 
     def test_locked_hint_yes_is_locked(self):
         with patch(
@@ -76,6 +78,48 @@ class UnixScreenLockTests(unittest.TestCase):
         ):
             self.assertEqual(
                 [unix.is_screen_locked() for _ in range(4)], [True, True, True, False]
+            )
+
+    def test_persistent_failure_while_locked_falls_back_to_unlocked(self):
+        # A single 'yes' must not pin the watcher in the locked state forever:
+        # the first _MAX_CONSECUTIVE_FAILURES failures keep the confirmed
+        # locked state, then the stale state is dropped and a later successful
+        # query recovers.
+        failed = completed(returncode=1, stderr="Failed to get path for session")
+        with patch(
+            "aw_watcher_afk.unix.subprocess.run",
+            side_effect=[
+                completed("yes\n"),
+                failed,
+                failed,
+                failed,
+                failed,
+                completed("no\n"),
+            ],
+        ):
+            self.assertEqual(
+                [unix.is_screen_locked() for _ in range(6)],
+                [True, True, True, True, False, False],
+            )
+
+    def test_success_resets_failure_counter(self):
+        # Intermittent failures must not accumulate across successful queries.
+        failed = completed(returncode=1, stderr="Failed to get path for session")
+        with patch(
+            "aw_watcher_afk.unix.subprocess.run",
+            side_effect=[
+                completed("yes\n"),
+                failed,
+                completed("yes\n"),
+                failed,
+                failed,
+                failed,
+                failed,
+            ],
+        ):
+            self.assertEqual(
+                [unix.is_screen_locked() for _ in range(7)],
+                [True, True, True, True, True, True, False],
             )
 
     def test_missing_loginctl_disables_further_checks(self):
