@@ -251,6 +251,57 @@ class MicLoopTests(unittest.TestCase):
             NOW + timedelta(seconds=10),
         )
 
+    def assert_events_do_not_overlap(self, calls):
+        # Replay the pings through aw-server's heartbeat merge and check that
+        # the stored events are ordered and disjoint (see aw-watcher-afk#61).
+        pulsetime = timedelta(seconds=180 + POLL_TIME)
+        events = []  # [afk, start, end]
+        for c in calls:
+            afk, ts = c.args[0], c.kwargs["timestamp"]
+            end = ts + timedelta(seconds=c.kwargs.get("duration", 0))
+            last = events[-1] if events else None
+            if last and last[0] == afk and last[1] <= ts <= last[2] + pulsetime:
+                last[2] = max(last[2], end)
+            else:
+                events.append([afk, ts, end])
+        for prev, nxt in zip(events, events[1:]):
+            self.assertGreaterEqual(nxt[1], prev[2], f"{prev} overlaps {nxt}")
+
+    def test_idle_timeout_does_not_overlap_presence(self):
+        # Default config (no mic): not-AFK heartbeats must stay at last_input,
+        # or the not-AFK event extends past the AFK start at last_input.
+        samples = [(10.0 + POLL_TIME * k, False, None, False) for k in range(36)]
+        calls = self.run_loop(samples, detect_mic=False)
+
+        self.assertTrue(calls[-1].args[0])
+        self.assert_events_do_not_overlap(calls)
+
+    def test_call_ending_before_timeout_does_not_overlap_later_afk(self):
+        # Mic stops while idle is still below the timeout; AFK trips later.
+        # The AFK interval must start after the call's presence, not at
+        # last_input (which predates the call).
+        samples = [(10.0, False, True, False)] + [
+            (10.0 + POLL_TIME * k, False, False, False) for k in range(1, 36)
+        ]
+        calls = self.run_loop(samples)
+
+        self.assertTrue(calls[-1].args[0])
+        self.assert_events_do_not_overlap(calls)
+        # AFK starts where the call was seen to end (t=5s).
+        self.assertEqual(
+            calls[-1].kwargs["timestamp"],
+            NOW + timedelta(seconds=5, milliseconds=1),
+        )
+
+    def test_mic_sequences_do_not_overlap(self):
+        for samples in (
+            [(200.0, False, False, False), (205.0, False, True, False), (210.0, False, False, False)],
+            [(10.0, False, True, False), (400.0, False, True, False), (405.0, False, False, False)],
+            [(10.0, False, True, False), (15.0, True, None, False), (400.0, True, None, False)],
+        ):
+            with self.subTest(samples=samples):
+                self.assert_events_do_not_overlap(self.run_loop(samples))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -69,6 +69,9 @@ Equivalent flags: `--detect-mic`, `--detect-audio-playback`.
   watcher stays not-AFK even past `timeout`. When returning from AFK, the event
   is anchored at the moment capture was first observed, so the whole call is
   counted as present rather than just from the last input event.
+- Mic-kept presence ends where the call was last seen. A later AFK period
+  starts there, not at the (earlier) last input, so the two never overlap.
+  Without the mic, not-AFK heartbeats stay zero-length at the last input.
 - A locked session ignores the mic signal until unlock; on unlock with the mic
   still in use, presence resumes at unlock time (it must not back-date into the
   locked interval).
