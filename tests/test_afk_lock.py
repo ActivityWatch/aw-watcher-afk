@@ -86,6 +86,23 @@ class ScreenLockTests(unittest.TestCase):
 
         self.assertEqual([c.args[0] for c in calls], [False, True, True, False])
 
+    def test_unlock_without_new_input_ends_afk_at_unlock(self):
+        # Locked after 90s of idle, then unlocked without HID input (e.g. face
+        # or fingerprint unlock): last_input still predates the lock.
+        calls = self.run_loop([(90.0, True), (100.0, False)])
+
+        unlock = NOW + timedelta(seconds=POLL_TIME)
+        self.assertEqual([c.args[0] for c in calls], [False, True, True, False])
+        # Events starting before the AFK event they follow are inserted out of
+        # order, which the server can turn into same-timestamp duplicates
+        # (aw-watcher-afk#61). The AFK period ends at unlock detection.
+        self.assertEqual(calls[2].kwargs["timestamp"], unlock)
+        self.assertEqual(
+            calls[3].kwargs["timestamp"], unlock + timedelta(milliseconds=1)
+        )
+        for c in calls[2:]:
+            self.assertGreater(c.kwargs["timestamp"], NOW + timedelta(milliseconds=1))
+
     def test_idle_timeout_still_starts_afk_at_last_input(self):
         calls = self.run_loop([(200.0, False)])
 

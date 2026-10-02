@@ -111,11 +111,20 @@ class AFKWatcher:
                 # If no longer AFK
                 if afk and not locked and seconds_since_input < self.settings.timeout:
                     logger.info("No longer AFK")
+                    # If the last input predates the AFK period (unlock without
+                    # HID input, e.g. face/fingerprint unlock), end it at unlock
+                    # detection: events starting before the AFK event would be
+                    # stored out of order (see aw-watcher-afk#61).
+                    afk_end = (
+                        now
+                        if afk_start is not None and last_input <= afk_start
+                        else last_input
+                    )
                     afk_start = None
-                    self.ping(afk, timestamp=last_input)
+                    self.ping(afk, timestamp=afk_end)
                     afk = False
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
-                    self.ping(afk, timestamp=last_input + td1ms)
+                    self.ping(afk, timestamp=afk_end + td1ms)
                 # If becomes AFK
                 elif not afk and (
                     seconds_since_input >= self.settings.timeout or locked
