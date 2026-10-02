@@ -38,9 +38,13 @@ def _parse_stream_targets(output: str) -> List[str]:
     """Return the source/sink name for each stream in ``pactl list short``.
 
     The short output of ``pactl list short source-outputs`` and
-    ``... sink-inputs`` is tab-separated; the third column identifies the
-    source (for a recording stream) or the sink (for a playback stream) the
-    stream is attached to.
+    ``... sink-inputs`` is tab-separated with the layout::
+
+        <stream-index>  <driver>  <client-index>  <source-or-sink-name>  ...
+
+    The **fourth** column (index 3) identifies the source (for a recording
+    stream) or the sink (for a playback stream).  The third column
+    (index 2) is a numeric client index, not a device name.
 
     Lines too short to parse still indicate that *a* stream exists, so they
     are returned as an empty target (which counts as a non-monitor stream).
@@ -51,7 +55,7 @@ def _parse_stream_targets(output: str) -> List[str]:
         if not line:
             continue
         fields = line.split("\t")
-        targets.append(fields[2] if len(fields) >= 3 else "")
+        targets.append(fields[3] if len(fields) >= 4 else "")
     return targets
 
 

@@ -15,20 +15,24 @@ from aw_watcher_afk.audio import (
 NOW = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 POLL_TIME = 5
 
+# Real ``pactl list short source-outputs`` layout:
+#   <stream-index>  <driver>  <client-index(numeric)>  <source-name>  ...
+# Column 2 is a numeric client id; column 3 is the source/sink device name.
 MIC_STREAM = (
-    "5\tmodule-null-sink.c\talsa_input.pci-0000_00_1f.3.analog-stereo\tFirefox\n"
+    "5\tmodule-null-sink.c\t22\talsa_input.pci-0000_00_1f.3.analog-stereo\n"
 )
 PLAYBACK_STREAM = (
-    "9\tmodule-always-sink.c\talsa_output.pci-0000_00_1f.3.analog-stereo\tSpotify\n"
+    "9\tmodule-always-sink.c\t33\talsa_output.pci-0000_00_1f.3.analog-stereo\n"
 )
 MONITOR_STREAM = (
-    "3\tmodule-loopback.c\t"
-    "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor\tChromium\n"
+    "3\tmodule-loopback.c\t8\t"
+    "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor\n"
 )
 
 
 class ParserTests(unittest.TestCase):
-    def test_parse_targets_from_third_column(self):
+    def test_parse_targets_from_fourth_column(self):
+        # Column 3 (0-indexed) is the source/sink name; column 2 is numeric client id.
         self.assertEqual(
             _parse_stream_targets(MIC_STREAM),
             ["alsa_input.pci-0000_00_1f.3.analog-stereo"],
@@ -168,6 +172,9 @@ class MicLoopTests(unittest.TestCase):
         self.assertEqual([c.args[0] for c in calls], [False, True, True, False, False])
         # The trailing not-afk heartbeat must not go behind the transition.
         self.assertEqual(calls[4].kwargs["timestamp"], NOW + timedelta(seconds=5))
+        # The heartbeat must carry a positive duration so the AW event covers
+        # the ongoing call, not just a zero-duration point at the mic anchor.
+        self.assertGreater(calls[4].kwargs.get("duration", 0), 0)
 
     def test_lock_overrides_mic(self):
         # Locked while the mic is in use -> stays AFK; resumes on unlock.
@@ -198,6 +205,41 @@ class MicLoopTests(unittest.TestCase):
         )
 
         self.assertEqual([c.args[0] for c in calls], [False, True])
+
+    def test_query_failure_preserves_mic_presence(self):
+        # A failed pactl query (None) must not interrupt an active call.
+        # The watcher must stay not-AFK even when one poll returns None.
+        calls = self.run_loop(
+            [
+                (200.0, False, False, False),  # idle -> AFK
+                (205.0, False, True, False),   # mic starts -> resume
+                (210.0, False, None, False),   # query fails -> stays not-AFK
+            ]
+        )
+        # No second AFK event should fire at t=10.
+        self.assertEqual([c.args[0] for c in calls], [False, True, True, False, False])
+        self.assertFalse(calls[-1].args[0])
+
+    def test_afk_start_anchored_at_now_when_call_ends_while_idle(self):
+        # When the mic ends after the idle timeout has already passed, the new
+        # AFK interval must start at detection time (NOW+10s), not at
+        # last_input (NOW-200s), which would overlap the call's presence event.
+        calls = self.run_loop(
+            [
+                (200.0, False, False, False),  # t=0: idle -> AFK
+                (205.0, False, True, False),   # t=5: mic starts -> resume at t5
+                (210.0, False, False, False),  # t=10: mic ends, still idle -> AFK
+            ]
+        )
+        self.assertEqual(
+            [c.args[0] for c in calls], [False, True, True, False, False, True]
+        )
+        # The second AFK transition (calls[5]) must anchor at NOW+10s, not at
+        # last_input which predates the call.
+        self.assertGreaterEqual(
+            calls[5].kwargs["timestamp"],
+            NOW + timedelta(seconds=10),
+        )
 
 
 if __name__ == "__main__":
