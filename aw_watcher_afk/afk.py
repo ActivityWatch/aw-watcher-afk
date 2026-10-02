@@ -8,6 +8,7 @@ from typing import Optional
 from aw_client import ActivityWatchClient
 from aw_core.models import Event
 
+from .audio import is_audio_playing, is_microphone_in_use
 from .config import load_config
 
 system = platform.system()
@@ -30,11 +31,30 @@ td1ms = timedelta(milliseconds=1)
 
 
 class Settings:
-    def __init__(self, config_section, timeout=None, poll_time=None):
+    def __init__(
+        self,
+        config_section,
+        timeout=None,
+        poll_time=None,
+        detect_mic=None,
+        detect_audio_playback=None,
+    ):
         # Time without input before we're considering the user as AFK
         self.timeout = timeout or config_section["timeout"]
         # How often we should poll for input activity
         self.poll_time = poll_time or config_section["poll_time"]
+        # Treat an active microphone (e.g. a call) as not-AFK
+        self.detect_mic = (
+            config_section.get("detect_mic", False)
+            if detect_mic is None
+            else detect_mic
+        )
+        # Report audio playback state in the logs (does not affect AFK state)
+        self.detect_audio_playback = (
+            config_section.get("detect_audio_playback", False)
+            if detect_audio_playback is None
+            else detect_audio_playback
+        )
 
         assert self.timeout >= self.poll_time
 
@@ -43,7 +63,11 @@ class AFKWatcher:
     def __init__(self, args, testing=False):
         # Read settings from config
         self.settings = Settings(
-            load_config(testing), timeout=args.timeout, poll_time=args.poll_time
+            load_config(testing),
+            timeout=args.timeout,
+            poll_time=args.poll_time,
+            detect_mic=args.detect_mic,
+            detect_audio_playback=args.detect_audio_playback,
         )
 
         self.client = ActivityWatchClient(
@@ -83,6 +107,14 @@ class AFKWatcher:
         # of AFK). After an unlock without HID input this is later than
         # last_input, which still predates the lock.
         not_afk_start: Optional[datetime] = None
+        # When the microphone was first seen in use in the current presence
+        # spell; anchors a mic-driven not-AFK transition so the whole call is
+        # counted as present, not just from the last input event.
+        mic_active_since: Optional[datetime] = None
+        # Anchor for not-AFK heartbeats while the microphone keeps us present.
+        present_anchor: Optional[datetime] = None
+        # Last reported audio-playback state (None until first observed).
+        playback_reported: Optional[bool] = None
         while True:
             try:
                 if system in ["Darwin", "Linux"] and os.getppid() != self._initial_ppid:
@@ -115,31 +147,80 @@ class AFKWatcher:
                 logger.debug(f"Seconds since last input: {seconds_since_input}")
                 logger.debug(f"Screen locked: {locked}")
 
+                # Microphone capture (e.g. a call) is a strong signal that the
+                # user is present even without keyboard/mouse input, so it can
+                # extend the not-AFK state. While the screen is locked we keep
+                # a confirmed locked state instead (capture may be a background
+                # recording), so the signal is ignored until unlock.
+                mic_active = False
+                if self.settings.detect_mic and not locked:
+                    in_use = is_microphone_in_use()
+                    if in_use:
+                        if mic_active_since is None:
+                            mic_active_since = now
+                            logger.info("Microphone in use; treating as not-AFK")
+                    elif mic_active_since is not None:
+                        logger.info("Microphone no longer in use")
+                        mic_active_since = None
+                    mic_active = bool(in_use)
+
+                # Audio output is a weak signal (it may be background music),
+                # so it is only reported, never used to change the AFK state.
+                if self.settings.detect_audio_playback:
+                    playing = is_audio_playing()
+                    if (
+                        playing is not None
+                        and playback_reported is not None
+                        and playing != playback_reported
+                    ):
+                        logger.info(
+                            "Audio playback %s", "started" if playing else "stopped"
+                        )
+                    if playing is not None:
+                        playback_reported = playing
+
                 # Screen lock means the user is away even if HID idle time is
                 # low (e.g. mouse jiggle, background audio). While locked we
                 # must not transition back to not-afk based on synthetic input.
                 # If no longer AFK
-                if afk and not locked and seconds_since_input < self.settings.timeout:
-                    logger.info("No longer AFK")
-                    # If the last input predates the AFK period (unlock without
-                    # HID input, e.g. face/fingerprint unlock), end it at unlock
-                    # detection: events starting before the AFK event would be
-                    # stored out of order (see aw-watcher-afk#61).
-                    afk_end = (
-                        now
-                        if afk_start is not None and last_input <= afk_start
-                        else last_input
+                if (
+                    afk
+                    and not locked
+                    and (seconds_since_input < self.settings.timeout or mic_active)
+                ):
+                    logger.info(
+                        "No longer AFK" + (" (microphone in use)" if mic_active else "")
                     )
+                    if mic_active:
+                        present_anchor = mic_active_since or now
+                        resume_at = present_anchor
+                    else:
+                        # If the last input predates the AFK period (unlock without
+                        # HID input, e.g. face/fingerprint unlock), end it at unlock
+                        # detection: events starting before the AFK event would be
+                        # stored out of order (see aw-watcher-afk#61).
+                        resume_at = (
+                            now
+                            if afk_start is not None and last_input <= afk_start
+                            else last_input
+                        )
+                        present_anchor = None
                     afk_start = None
-                    not_afk_start = afk_end
-                    self.ping(afk, timestamp=afk_end)
+                    not_afk_start = resume_at
+                    self.ping(afk, timestamp=resume_at)
                     afk = False
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
-                    self.ping(afk, timestamp=afk_end + td1ms)
+                    self.ping(afk, timestamp=resume_at + td1ms)
                 # If becomes AFK
                 elif not afk and (
-                    seconds_since_input >= self.settings.timeout or locked
+                    locked
+                    or (seconds_since_input >= self.settings.timeout and not mic_active)
                 ):
+                    # A locked state (or idle AFK period) ends the presence
+                    # spell; the mic anchor must not survive it, or a later
+                    # unlock would back-date presence into the AFK interval.
+                    present_anchor = None
+                    mic_active_since = None
                     logger.info("Became AFK" + (" (screen locked)" if locked else ""))
                     # When the lock is the trigger and HID idle is still below
                     # the timeout, AFK starts at lock detection, not last_input,
@@ -172,7 +253,10 @@ class AFKWatcher:
                             duration=(now - start).total_seconds(),
                         )
                     else:
-                        self.ping(afk, timestamp=last_input)
+                        start = last_input
+                        if present_anchor is not None and present_anchor > start:
+                            start = present_anchor
+                        self.ping(afk, timestamp=start)
 
                 sleep(self.settings.poll_time)
 

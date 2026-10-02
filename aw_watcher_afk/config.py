@@ -7,6 +7,10 @@ default_config = """
 [aw-watcher-afk]
 timeout = 180
 poll_time = 5
+# Treat an active microphone (e.g. during a call) as not-AFK (Linux).
+detect_mic = false
+# Log audio playback state; does not affect the AFK state (Linux).
+detect_audio_playback = false
 
 [aw-watcher-afk-testing]
 timeout = 20
@@ -46,6 +50,20 @@ def parse_args():
     )
     parser.add_argument(
         "--poll-time", dest="poll_time", type=float, default=default_poll_time
+    )
+    parser.add_argument(
+        "--detect-mic",
+        dest="detect_mic",
+        action="store_true",
+        default=config.get("detect_mic", False),
+        help="treat an active microphone (e.g. during a call) as not-AFK (Linux)",
+    )
+    parser.add_argument(
+        "--detect-audio-playback",
+        dest="detect_audio_playback",
+        action="store_true",
+        default=config.get("detect_audio_playback", False),
+        help="log audio playback state; does not affect the AFK state (Linux)",
     )
     parsed_args = parser.parse_args()
     return parsed_args
