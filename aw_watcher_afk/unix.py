@@ -116,33 +116,44 @@ logger = logging.getLogger(__name__)
 # so we stop spawning a process on every poll.
 _loginctl_available = True
 # Last state loginctl confirmed. A failed query returns this instead of
-# False, so a transient failure while locked doesn't read as an unlock.
+# False, so a failure while locked doesn't read as an unlock.
 _last_locked = False
-# Consecutive failed queries. A sustained failure must not pin the watcher
-# in the locked state forever, so past _MAX_CONSECUTIVE_FAILURES we stop
-# trusting the stale locked state.
+# Consecutive failed queries. Used only to log a single warning when a
+# failure streak becomes sustained, instead of warning on every poll.
 _consecutive_failures = 0
 _MAX_CONSECUTIVE_FAILURES = 3
+# Whether we have already warned about the current failure streak.
+_warned_persistent_failure = False
 
 
 def _after_failed_query() -> bool:
     """Return the screen-lock state to report after a failed loginctl query.
 
-    Transient failures keep the last confirmed state so a blip while locked
-    doesn't read as an unlock. A persistent failure, however, must not pin
-    the watcher in the locked state forever: after more than
-    ``_MAX_CONSECUTIVE_FAILURES`` in a row we fall back to "not locked" and
-    let the watcher's normal idle-based AFK detection take over.
+    A failed query must not report an unlock: only a *successful* query can
+    clear a confirmed locked state. Reporting ``False`` here could make the
+    watcher emit a false ``not-afk`` transition while the screen is actually
+    locked (e.g. synthetic input keeping HID idle below the AFK timeout),
+    splitting the locked AFK interval. So the last confirmed state is kept
+    until loginctl answers again.
+
+    The failure streak is bounded only for logging: one warning is emitted
+    when the streak first becomes sustained, then debug-level messages, so a
+    permanently broken logind cannot flood the log. Recovery is automatic on
+    the first successful query.
     """
-    global _consecutive_failures
+    global _consecutive_failures, _warned_persistent_failure
 
     _consecutive_failures += 1
-    if _consecutive_failures > _MAX_CONSECUTIVE_FAILURES:
+    if (
+        _consecutive_failures > _MAX_CONSECUTIVE_FAILURES
+        and not _warned_persistent_failure
+    ):
+        _warned_persistent_failure = True
         logger.warning(
-            "loginctl failed %d times in a row; falling back to unlocked",
+            "loginctl has failed %d times in a row; keeping the last "
+            "confirmed screen-lock state until a query succeeds",
             _consecutive_failures,
         )
-        return False
     return _last_locked
 
 
@@ -155,14 +166,15 @@ def is_screen_locked() -> bool:
 
     Uses ``$XDG_SESSION_ID`` if set, else logind's ``auto`` session (the
     caller's session, or the user's display session). If a query fails, the
-    last confirmed state is returned for up to ``_MAX_CONSECUTIVE_FAILURES``
-    consecutive failures (False if there is none yet), after which a
-    persistent failure falls back to "not locked".
+    last state loginctl confirmed is returned (False if there is none yet),
+    so a failure while locked doesn't read as an unlock. The check recovers
+    on the first successful query.
     """
     global _loginctl_available, _last_locked, _consecutive_failures
+    global _warned_persistent_failure
 
     if not _loginctl_available:
-        return False
+        return _last_locked
 
     session = os.environ.get("XDG_SESSION_ID") or "auto"
     try:
@@ -175,7 +187,7 @@ def is_screen_locked() -> bool:
     except FileNotFoundError:
         logger.info("loginctl not found, screen lock detection disabled")
         _loginctl_available = False
-        return False
+        return _last_locked
     except (OSError, subprocess.TimeoutExpired) as e:
         logger.debug(f"Failed to query screen lock state: {e}")
         return _after_failed_query()
@@ -184,6 +196,7 @@ def is_screen_locked() -> bool:
         logger.debug(f"loginctl failed: {result.stderr.strip()}")
         return _after_failed_query()
     _consecutive_failures = 0
+    _warned_persistent_failure = False
     _last_locked = result.stdout.strip() == "yes"
     return _last_locked
 
