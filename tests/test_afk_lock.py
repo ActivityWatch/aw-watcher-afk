@@ -25,7 +25,12 @@ class SteppingDatetime(datetime):
 class ScreenLockTests(unittest.TestCase):
     def make_watcher(self):
         watcher = object.__new__(AFKWatcher)
-        watcher.settings = SimpleNamespace(timeout=180, poll_time=POLL_TIME)
+        watcher.settings = SimpleNamespace(
+            timeout=180,
+            poll_time=POLL_TIME,
+            detect_mic=False,
+            detect_audio_playback=False,
+        )
         watcher._initial_ppid = os.getppid()
         return watcher
 
