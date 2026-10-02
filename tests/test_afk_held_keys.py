@@ -14,6 +14,7 @@ members, and importing pynput requires an X connection (unavailable in CI).
 """
 
 import unittest
+from unittest import mock
 
 from aw_watcher_afk.listeners import KeyboardListener
 
@@ -87,6 +88,28 @@ class HeldKeyActivityTests(unittest.TestCase):
         self.assertTrue(listener.has_new_event())
         listener.on_release("a")
         self.assertFalse(listener.has_new_event())
+
+    def test_char_only_release_key_is_removed(self):
+        # Some platforms report character keys without a virtual key code; the
+        # char must still identify the key so a release ends the hold.
+        listener = KeyboardListener()
+        listener.on_press(_FakeKeyCode(vk=None, char="a"))
+        listener.next_event()
+        self.assertTrue(listener.has_new_event())
+        listener.on_release(_FakeKeyCode(vk=None, char="a"))
+        self.assertFalse(listener.has_new_event())
+
+    def test_stuck_held_key_expires(self):
+        # A missed release (keyboard unplugged mid-hold) must not pin activity
+        # forever: held state older than the max age is treated as released.
+        listener = KeyboardListener()
+        with mock.patch("time.monotonic", return_value=0.0):
+            listener.on_press("a")
+            listener.next_event()
+            self.assertTrue(listener.has_new_event())
+        with mock.patch("time.monotonic", return_value=400.0):
+            self.assertFalse(listener.has_new_event())
+            listener.on_release("a")  # late release is a no-op, not an error
 
     def test_mismatched_release_key_is_removed(self):
         # A press carrying a char and a release carrying only the virtual key
