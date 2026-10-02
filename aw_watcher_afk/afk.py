@@ -152,6 +152,11 @@ class AFKWatcher:
                 # extend the not-AFK state. While the screen is locked we keep
                 # a confirmed locked state instead (capture may be a background
                 # recording), so the signal is ignored until unlock.
+                #
+                # Save pre-detection state: used by the "becomes AFK" branch
+                # below to anchor the AFK start at NOW (not last_input) when
+                # a mic-kept presence spell ends in the same poll.
+                prev_mic_active_since = mic_active_since
                 mic_active = False
                 if self.settings.detect_mic and not locked:
                     in_use = is_microphone_in_use()
@@ -159,10 +164,17 @@ class AFKWatcher:
                         if mic_active_since is None:
                             mic_active_since = now
                             logger.info("Microphone in use; treating as not-AFK")
-                    elif mic_active_since is not None:
-                        logger.info("Microphone no longer in use")
-                        mic_active_since = None
-                    mic_active = bool(in_use)
+                        mic_active = True
+                    elif in_use is False:
+                        # Confirmed stop — clear the anchor.
+                        if mic_active_since is not None:
+                            logger.info("Microphone no longer in use")
+                            mic_active_since = None
+                        mic_active = False
+                    else:
+                        # in_use is None: query failed — preserve last known state
+                        # so a transient pactl timeout does not interrupt an ongoing call.
+                        mic_active = mic_active_since is not None
 
                 # Audio output is a weak signal (it may be background music),
                 # so it is only reported, never used to change the AFK state.
@@ -219,6 +231,10 @@ class AFKWatcher:
                     # A locked state (or idle AFK period) ends the presence
                     # spell; the mic anchor must not survive it, or a later
                     # unlock would back-date presence into the AFK interval.
+                    # If a mic-kept presence spell just ended (prev_mic_active_since
+                    # set but cleared this poll), anchor AFK at NOW — last_input
+                    # predates the call and would create an overlapping interval.
+                    was_mic_present = prev_mic_active_since is not None
                     present_anchor = None
                     mic_active_since = None
                     logger.info("Became AFK" + (" (screen locked)" if locked else ""))
@@ -228,11 +244,9 @@ class AFKWatcher:
                     lock_triggered = (
                         locked and seconds_since_input < self.settings.timeout
                     )
-                    afk_start = now if lock_triggered else last_input
+                    afk_start = now if (lock_triggered or was_mic_present) else last_input
                     not_afk_start = None
-                    afk_duration = (
-                        0.0 if lock_triggered else (now - afk_start).total_seconds()
-                    )
+                    afk_duration = 0.0 if (lock_triggered or was_mic_present) else seconds_since_input
                     self.ping(afk, timestamp=afk_start)
                     afk = True
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
@@ -256,7 +270,11 @@ class AFKWatcher:
                         start = last_input
                         if present_anchor is not None and present_anchor > start:
                             start = present_anchor
-                        self.ping(afk, timestamp=start)
+                        self.ping(
+                            afk,
+                            timestamp=start,
+                            duration=(now - start).total_seconds(),
+                        )
 
                 sleep(self.settings.poll_time)
 
