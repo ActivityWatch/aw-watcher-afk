@@ -14,9 +14,11 @@ def completed(stdout="", returncode=0, stderr=""):
 class UnixScreenLockTests(unittest.TestCase):
     def setUp(self):
         unix._loginctl_available = True
+        unix._last_locked = False
 
     def tearDown(self):
         unix._loginctl_available = True
+        unix._last_locked = False
 
     def test_locked_hint_yes_is_locked(self):
         with patch(
@@ -60,6 +62,21 @@ class UnixScreenLockTests(unittest.TestCase):
             side_effect=subprocess.TimeoutExpired("loginctl", 2),
         ):
             self.assertFalse(unix.is_screen_locked())
+
+    def test_failure_while_locked_keeps_locked(self):
+        failed = completed(returncode=1, stderr="Failed to get path for session")
+        with patch(
+            "aw_watcher_afk.unix.subprocess.run",
+            side_effect=[
+                completed("yes\n"),
+                failed,
+                subprocess.TimeoutExpired("loginctl", 2),
+                completed("no\n"),
+            ],
+        ):
+            self.assertEqual(
+                [unix.is_screen_locked() for _ in range(4)], [True, True, True, False]
+            )
 
     def test_missing_loginctl_disables_further_checks(self):
         with patch(

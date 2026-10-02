@@ -115,6 +115,9 @@ logger = logging.getLogger(__name__)
 # Set to False once we know loginctl isn't installed (non-systemd systems),
 # so we stop spawning a process on every poll.
 _loginctl_available = True
+# Last state loginctl confirmed. A failed query returns this instead of
+# False, so a transient failure while locked doesn't read as an unlock.
+_last_locked = False
 
 
 def is_screen_locked() -> bool:
@@ -125,10 +128,10 @@ def is_screen_locked() -> bool:
     others). Lockers that don't set it (e.g. plain i3lock) are not detected.
 
     Uses ``$XDG_SESSION_ID`` if set, else logind's ``auto`` session (the
-    caller's session, or the user's display session). Returns False when the
-    state can't be determined, which keeps the old behaviour.
+    caller's session, or the user's display session). If a query fails, the
+    last confirmed state is returned (False if there is none yet).
     """
-    global _loginctl_available
+    global _loginctl_available, _last_locked
 
     if not _loginctl_available:
         return False
@@ -147,12 +150,13 @@ def is_screen_locked() -> bool:
         return False
     except (OSError, subprocess.TimeoutExpired) as e:
         logger.debug(f"Failed to query screen lock state: {e}")
-        return False
+        return _last_locked
 
     if result.returncode != 0:
         logger.debug(f"loginctl failed: {result.stderr.strip()}")
-        return False
-    return result.stdout.strip() == "yes"
+        return _last_locked
+    _last_locked = result.stdout.strip() == "yes"
+    return _last_locked
 
 
 if __name__ == "__main__":
