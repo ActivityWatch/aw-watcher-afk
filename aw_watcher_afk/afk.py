@@ -113,6 +113,9 @@ class AFKWatcher:
         mic_active_since: Optional[datetime] = None
         # Anchor for not-AFK heartbeats while the microphone keeps us present.
         present_anchor: Optional[datetime] = None
+        # How far mic-kept presence has been reported. A later AFK interval
+        # must not start before this, or it overlaps the presence event.
+        present_until: Optional[datetime] = None
         # Last reported audio-playback state (None until first observed).
         playback_reported: Optional[bool] = None
         while True:
@@ -153,10 +156,6 @@ class AFKWatcher:
                 # a confirmed locked state instead (capture may be a background
                 # recording), so the signal is ignored until unlock.
                 #
-                # Save pre-detection state: used by the "becomes AFK" branch
-                # below to anchor the AFK start at NOW (not last_input) when
-                # a mic-kept presence spell ends in the same poll.
-                prev_mic_active_since = mic_active_since
                 mic_active = False
                 if self.settings.detect_mic and not locked:
                     in_use = is_microphone_in_use()
@@ -170,6 +169,8 @@ class AFKWatcher:
                         if mic_active_since is not None:
                             logger.info("Microphone no longer in use")
                             mic_active_since = None
+                            # The call lasted until (at most) now.
+                            present_until = now
                         mic_active = False
                     else:
                         # in_use is None: query failed — preserve last known state
@@ -217,6 +218,7 @@ class AFKWatcher:
                             else last_input
                         )
                         present_anchor = None
+                        present_until = None
                     afk_start = None
                     not_afk_start = resume_at
                     self.ping(afk, timestamp=resume_at)
@@ -231,12 +233,6 @@ class AFKWatcher:
                     # A locked state (or idle AFK period) ends the presence
                     # spell; the mic anchor must not survive it, or a later
                     # unlock would back-date presence into the AFK interval.
-                    # If a mic-kept presence spell just ended (prev_mic_active_since
-                    # set but cleared this poll), anchor AFK at NOW — last_input
-                    # predates the call and would create an overlapping interval.
-                    was_mic_present = prev_mic_active_since is not None
-                    present_anchor = None
-                    mic_active_since = None
                     logger.info("Became AFK" + (" (screen locked)" if locked else ""))
                     # When the lock is the trigger and HID idle is still below
                     # the timeout, AFK starts at lock detection, not last_input,
@@ -244,9 +240,18 @@ class AFKWatcher:
                     lock_triggered = (
                         locked and seconds_since_input < self.settings.timeout
                     )
-                    afk_start = now if (lock_triggered or was_mic_present) else last_input
+                    if lock_triggered:
+                        afk_start = now
+                    else:
+                        # last_input predates a mic-kept presence spell; start
+                        # AFK where that spell's reported presence ended so the
+                        # two events don't overlap (see aw-watcher-afk#61).
+                        afk_start = max(last_input, present_until or last_input)
+                    present_anchor = None
+                    present_until = None
+                    mic_active_since = None
                     not_afk_start = None
-                    afk_duration = 0.0 if (lock_triggered or was_mic_present) else (now - afk_start).total_seconds()
+                    afk_duration = (now - afk_start).total_seconds()
                     self.ping(afk, timestamp=afk_start)
                     afk = True
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
@@ -268,20 +273,28 @@ class AFKWatcher:
                         )
                     else:
                         start = last_input
-                        # Bootstrap the anchor when the mic was already active
-                        # at watcher start (no AFK→not-AFK transition set it).
-                        # Without this, start stays at last_input even when the
-                        # user has been idle for >> timeout, back-dating the
-                        # heartbeat and potentially overlapping a prior AFK event.
-                        if mic_active and present_anchor is None:
-                            present_anchor = mic_active_since or now
-                        if present_anchor is not None and present_anchor > start:
-                            start = present_anchor
-                        self.ping(
-                            afk,
-                            timestamp=start,
-                            duration=(now - start).total_seconds(),
-                        )
+                        if mic_active:
+                            # Bootstrap the anchor when the mic was already
+                            # active at watcher start (no AFK->not-AFK
+                            # transition set it), so the heartbeat isn't
+                            # back-dated to a last_input far in the past.
+                            if present_anchor is None:
+                                present_anchor = mic_active_since or now
+                            start = max(start, present_anchor)
+                            # The mic is evidence of presence up to now, so
+                            # extend the event over the ongoing call.
+                            present_until = now
+                            self.ping(
+                                afk,
+                                timestamp=start,
+                                duration=(now - start).total_seconds(),
+                            )
+                        else:
+                            # Without mic evidence, presence ends at the last
+                            # input: a zero-duration heartbeat, as on master.
+                            if present_anchor is not None:
+                                start = max(start, present_anchor)
+                            self.ping(afk, timestamp=start)
 
                 sleep(self.settings.poll_time)
 
