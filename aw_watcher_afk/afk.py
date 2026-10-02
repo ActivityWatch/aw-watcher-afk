@@ -79,6 +79,10 @@ class AFKWatcher:
         afk = False
         # When the current AFK period started (set on each transition to AFK)
         afk_start: Optional[datetime] = None
+        # When the current not-afk period started (set on each transition out
+        # of AFK). After an unlock without HID input this is later than
+        # last_input, which still predates the lock.
+        not_afk_start: Optional[datetime] = None
         while True:
             try:
                 if system in ["Darwin", "Linux"] and os.getppid() != self._initial_ppid:
@@ -102,6 +106,12 @@ class AFKWatcher:
                     continue
                 locked = is_screen_locked()
                 last_input = now - timedelta(seconds=seconds_since_input)
+                # An event starting before the not-afk event it follows cannot
+                # merge into it and is stored separately (see aw-watcher-afk#61).
+                # After an unlock without HID input, last_input still predates
+                # the not-afk period, so anchor on that period's start instead.
+                if not_afk_start is not None and last_input < not_afk_start:
+                    last_input = not_afk_start
                 logger.debug(f"Seconds since last input: {seconds_since_input}")
                 logger.debug(f"Screen locked: {locked}")
 
@@ -121,6 +131,7 @@ class AFKWatcher:
                         else last_input
                     )
                     afk_start = None
+                    not_afk_start = afk_end
                     self.ping(afk, timestamp=afk_end)
                     afk = False
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
@@ -137,7 +148,10 @@ class AFKWatcher:
                         locked and seconds_since_input < self.settings.timeout
                     )
                     afk_start = now if lock_triggered else last_input
-                    afk_duration = 0.0 if lock_triggered else seconds_since_input
+                    not_afk_start = None
+                    afk_duration = (
+                        0.0 if lock_triggered else (now - afk_start).total_seconds()
+                    )
                     self.ping(afk, timestamp=afk_start)
                     afk = True
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)

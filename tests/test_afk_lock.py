@@ -103,6 +103,35 @@ class ScreenLockTests(unittest.TestCase):
         for c in calls[2:]:
             self.assertGreater(c.kwargs["timestamp"], NOW + timedelta(milliseconds=1))
 
+    def test_steady_heartbeat_after_unlock_without_input_stays_ordered(self):
+        # After unlocking with no HID input, the next steady-state not-afk
+        # heartbeat must not fall back to the stale pre-lock last_input: it
+        # would start before the not-afk event it follows and be stored
+        # out of order (the bug the transition fix addresses, one poll later).
+        calls = self.run_loop([(90.0, True), (100.0, False), (105.0, False)])
+
+        unlock = NOW + timedelta(seconds=POLL_TIME)
+        self.assertEqual([c.args[0] for c in calls], [False, True, True, False, False])
+        # The steady-state not-afk heartbeat must stay ordered after the
+        # not-afk event emitted at unlock.
+        self.assertGreaterEqual(calls[4].kwargs["timestamp"], unlock)
+
+    def test_idle_timeout_after_unlock_without_input_starts_afk_at_unlock(self):
+        # Unlocked without input, then idle past the timeout: the new AFK
+        # period must start at unlock detection, not at the stale last_input,
+        # or the AFK event would predate the not-afk event it follows.
+        calls = self.run_loop([(90.0, True), (100.0, False), (185.0, False)])
+
+        unlock = NOW + timedelta(seconds=POLL_TIME)
+        self.assertEqual(
+            [c.args[0] for c in calls], [False, True, True, False, False, True]
+        )
+        self.assertEqual(calls[4].kwargs["timestamp"], unlock)
+        self.assertEqual(
+            calls[5].kwargs["timestamp"], unlock + timedelta(milliseconds=1)
+        )
+        self.assertEqual(calls[5].kwargs["duration"], 5.0)
+
     def test_idle_timeout_still_starts_afk_at_last_input(self):
         calls = self.run_loop([(200.0, False)])
 
