@@ -32,9 +32,8 @@ class UnixScreenLockTests(unittest.TestCase):
         """Call is_screen_locked() once per (time, outcome) pair, return results."""
         results = []
         for now, outcome in outcomes_by_time:
-            with (
-                patch("aw_watcher_afk.unix.monotonic", return_value=now),
-                patch("aw_watcher_afk.unix.subprocess.run", side_effect=[outcome]),
+            with patch("aw_watcher_afk.unix.monotonic", return_value=now), patch(
+                "aw_watcher_afk.unix.subprocess.run", side_effect=[outcome]
             ):
                 results.append(unix.is_screen_locked())
         return results
@@ -52,12 +51,9 @@ class UnixScreenLockTests(unittest.TestCase):
             self.assertFalse(unix.is_screen_locked())
 
     def test_uses_xdg_session_id(self):
-        with (
-            patch.dict("os.environ", {"XDG_SESSION_ID": "c2"}),
-            patch(
-                "aw_watcher_afk.unix.subprocess.run", return_value=completed("no\n")
-            ) as run,
-        ):
+        with patch.dict("os.environ", {"XDG_SESSION_ID": "c2"}), patch(
+            "aw_watcher_afk.unix.subprocess.run", return_value=completed("no\n")
+        ) as run:
             unix.is_screen_locked()
         self.assertEqual(
             run.call_args.args[0],
@@ -65,12 +61,9 @@ class UnixScreenLockTests(unittest.TestCase):
         )
 
     def test_falls_back_to_auto_session(self):
-        with (
-            patch.dict("os.environ", {}, clear=True),
-            patch(
-                "aw_watcher_afk.unix.subprocess.run", return_value=completed("no\n")
-            ) as run,
-        ):
+        with patch.dict("os.environ", {}, clear=True), patch(
+            "aw_watcher_afk.unix.subprocess.run", return_value=completed("no\n")
+        ) as run:
             unix.is_screen_locked()
         self.assertEqual(run.call_args.args[0][2], "auto")
 
