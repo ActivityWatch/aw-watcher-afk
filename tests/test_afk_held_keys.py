@@ -110,6 +110,10 @@ class HeldKeyActivityTests(unittest.TestCase):
         with mock.patch("time.monotonic", return_value=400.0):
             self.assertFalse(listener.has_new_event())
             listener.on_release("a")  # late release is a no-op, not an error
+        # The expired key was dropped, not merely hidden: a later press of the
+        # same key counts as a fresh press again.
+        listener.on_press("a")
+        self.assertEqual(listener.next_event()["presses"], 1)
 
     def test_mismatched_release_key_is_removed(self):
         # A press carrying a char and a release carrying only the virtual key
