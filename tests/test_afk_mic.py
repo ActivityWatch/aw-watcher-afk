@@ -149,6 +149,16 @@ class MicLoopTests(unittest.TestCase):
 
         self.assertTrue(all(not c.args[0] for c in calls))
 
+    def test_heartbeat_not_backdated_when_mic_active_from_first_poll(self):
+        # When the watcher starts not-AFK and the mic is already active (no
+        # prior AFK->not-AFK transition that would set present_anchor), the
+        # not-AFK heartbeat must not timestamp at last_input (seconds_since_input
+        # in the past) but at mic_active_since (first seen active).
+        # Regression: without the fix, poll 2 would emit timestamp=NOW+5s-400s.
+        calls = self.run_loop([(10.0, False, True, False), (400.0, False, True, False)])
+        # Second heartbeat must not predate the first poll (NOW).
+        self.assertGreaterEqual(calls[1].kwargs["timestamp"], NOW)
+
     def test_mic_returns_from_afk_anchored_at_capture_start(self):
         # Idle timeout trips AFK, then the microphone is picked up.
         calls = self.run_loop(
