@@ -246,7 +246,7 @@ class AFKWatcher:
                     )
                     afk_start = now if (lock_triggered or was_mic_present) else last_input
                     not_afk_start = None
-                    afk_duration = 0.0 if (lock_triggered or was_mic_present) else seconds_since_input
+                    afk_duration = 0.0 if (lock_triggered or was_mic_present) else (now - afk_start).total_seconds()
                     self.ping(afk, timestamp=afk_start)
                     afk = True
                     # ping with timestamp+1ms with the next event (to ensure the latest event gets retrieved by get_event)
@@ -268,6 +268,13 @@ class AFKWatcher:
                         )
                     else:
                         start = last_input
+                        # Bootstrap the anchor when the mic was already active
+                        # at watcher start (no AFK→not-AFK transition set it).
+                        # Without this, start stays at last_input even when the
+                        # user has been idle for >> timeout, back-dating the
+                        # heartbeat and potentially overlapping a prior AFK event.
+                        if mic_active and present_anchor is None:
+                            present_anchor = mic_active_since or now
                         if present_anchor is not None and present_anchor > start:
                             start = present_anchor
                         self.ping(
