@@ -144,6 +144,19 @@ class UnixScreenLockTests(unittest.TestCase):
         )
         self.assertEqual(results, [False] * 4)
 
+    def test_failures_while_unlocked_then_lock_is_detected(self):
+        # Failures while unlocked must not poison the state: a later confirmed
+        # lock is still detected, and is trusted through the follow-up failure.
+        results = self._run_at(
+            [
+                (0, FAILED),
+                (10, FAILED),
+                (20, completed("yes\n")),
+                (25, FAILED),
+            ]
+        )
+        self.assertEqual(results, [False, False, True, True])
+
     def test_missing_loginctl_disables_further_checks(self):
         with patch(
             "aw_watcher_afk.unix.subprocess.run", side_effect=FileNotFoundError
@@ -156,6 +169,9 @@ class UnixScreenLockTests(unittest.TestCase):
         unix._last_locked = True
         with patch("aw_watcher_afk.unix.subprocess.run", side_effect=FileNotFoundError):
             self.assertFalse(unix.is_screen_locked())
+        # The handler must actually clear the stale lock, not merely return
+        # False (the second call would return False either way).
+        self.assertFalse(unix._last_locked)
         self.assertFalse(unix.is_screen_locked())
 
 
