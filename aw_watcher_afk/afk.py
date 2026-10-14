@@ -65,9 +65,8 @@ class AFKWatcher:
     def run(self):
         logger.info("aw-watcher-afk started")
 
-        # Initialization
-        self.client.wait_for_start()
-
+        # Register before connecting: the queue creates the bucket and retries
+        # delivery even if the server is still starting.
         eventtype = "afkstatus"
         self.client.create_bucket(self.bucketname, eventtype, queued=True)
 
