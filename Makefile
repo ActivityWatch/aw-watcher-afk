@@ -6,6 +6,7 @@ build:
 test:
 	poetry run aw-watcher-afk --help  # Ensures that it at least starts
 	poetry run python -m unittest discover -s tests -p "test_afk_*.py"
+	poetry run python -m unittest discover -s tests -p "test_windows_input_diagnostic.py"
 	make typecheck
 
 typecheck:

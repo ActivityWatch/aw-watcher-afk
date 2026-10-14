@@ -20,3 +20,10 @@ To install from a cloned version, cd into the directory and run
 system-wide it can be installed with `pip install .`, but that has the issue
 that it might not get the exact version of the dependencies due to not reading
 the poetry.lock file.
+
+## Windows unexpected input diagnostic
+
+For controller-related or unexplained Windows activity, see the
+[read-only input diagnostic](docs/windows-input-diagnostic.md). It compares
+Windows idle time with aggregate mouse/keyboard injection flags without
+recording input content or changing AFK behavior.
