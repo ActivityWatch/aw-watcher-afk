@@ -98,7 +98,11 @@ class OfflineStartupTests(unittest.TestCase):
     def run_watcher(self):
         try:
             self.watcher.run()
-        except BaseException as error:
+        except KeyboardInterrupt:
+            # Deliberate shutdown signal raised by sample()/request() once the
+            # test has observed what it needs; not a watcher failure.
+            pass
+        except Exception as error:
             self.errors.append(error)
 
     def cleanup_watcher(self):
