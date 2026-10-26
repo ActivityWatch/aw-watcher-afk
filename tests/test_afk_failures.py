@@ -23,7 +23,9 @@ class WindowsIdleQueryTests(unittest.TestCase):
 class HeartbeatFailureTests(unittest.TestCase):
     def make_watcher(self):
         watcher = object.__new__(AFKWatcher)
-        watcher.settings = SimpleNamespace(timeout=10, poll_time=5)
+        watcher.settings = SimpleNamespace(
+            timeout=10, poll_time=5, detect_mic=False, detect_audio_playback=False
+        )
         watcher._initial_ppid = os.getppid()
         return watcher
 
