@@ -1,6 +1,9 @@
 import logging
+import os
+import subprocess
 from datetime import datetime
-from time import sleep
+from time import monotonic, sleep
+from typing import Optional
 
 from .listeners import GamepadListener, KeyboardListener, MouseListener
 
@@ -108,9 +111,90 @@ def seconds_since_last_input():
     return _last_input_unix.seconds_since_last_input()
 
 
+logger = logging.getLogger(__name__)
+
+# Set to False once we know loginctl isn't installed (non-systemd systems),
+# so we stop spawning a process on every poll.
+_loginctl_available = True
+# Last state loginctl confirmed. A failed query returns this instead of
+# False, so a brief failure while locked doesn't read as an unlock.
+_last_locked = False
+# When the current streak of failed queries began (time.monotonic()), or None
+# if the last query succeeded.
+_failing_since: Optional[float] = None
+# How long the last confirmed lock state is trusted while queries keep failing.
+# Long enough to ride out a logind restart or a slow bus, short enough that a
+# lock that can no longer be re-confirmed can't pin the watcher AFK forever
+# after the user has unlocked and resumed activity.
+_LOCK_STATE_TRUST_SECONDS = 300.0
+
+
+def _after_failed_query() -> bool:
+    """Return the screen-lock state to report after a failed loginctl query.
+
+    A short failure streak keeps the last confirmed state, so a blip while
+    locked doesn't emit a false ``not-afk`` transition and split the locked AFK
+    interval. Once the streak has lasted ``_LOCK_STATE_TRUST_SECONDS`` the
+    confirmed lock can no longer be trusted: we log one warning and fall back to
+    unlocked, so real activity can bring the watcher back from AFK. Recovery is
+    automatic on the first successful query.
+    """
+    global _last_locked, _failing_since
+
+    now = monotonic()
+    if _failing_since is None:
+        _failing_since = now
+    if _last_locked and now - _failing_since >= _LOCK_STATE_TRUST_SECONDS:
+        logger.warning(
+            "loginctl has been failing for %.0fs; no longer trusting the last "
+            "confirmed locked state",
+            now - _failing_since,
+        )
+        _last_locked = False
+    return _last_locked
+
+
 def is_screen_locked() -> bool:
-    # TODO: Linux implementation (e.g. logind LockedHint / DBus screensaver)
-    return False
+    """Return True if the logind session reports the screen as locked.
+
+    Reads the session's ``LockedHint`` property, which desktop environments
+    and lockers set via logind when the screen locks (GNOME, KDE Plasma, and
+    others). Lockers that don't set it (e.g. plain i3lock) are not detected.
+
+    Uses ``$XDG_SESSION_ID`` if set, else logind's ``auto`` session (the
+    caller's session, or the user's display session). If a query fails, the
+    last confirmed state is returned (False if there is none yet) for up to
+    ``_LOCK_STATE_TRUST_SECONDS``, after which it falls back to unlocked. The
+    check recovers on the first successful query.
+    """
+    global _loginctl_available, _last_locked, _failing_since
+
+    if not _loginctl_available:
+        return False
+
+    session = os.environ.get("XDG_SESSION_ID") or "auto"
+    try:
+        result = subprocess.run(
+            ["loginctl", "show-session", session, "-p", "LockedHint", "--value"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except FileNotFoundError:
+        logger.info("loginctl not found, screen lock detection disabled")
+        _loginctl_available = False
+        _last_locked = False
+        return False
+    except (OSError, subprocess.TimeoutExpired) as e:
+        logger.debug(f"Failed to query screen lock state: {e}")
+        return _after_failed_query()
+
+    if result.returncode != 0:
+        logger.debug(f"loginctl failed: {result.stderr.strip()}")
+        return _after_failed_query()
+    _failing_since = None
+    _last_locked = result.stdout.strip() == "yes"
+    return _last_locked
 
 
 if __name__ == "__main__":
