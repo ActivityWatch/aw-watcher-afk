@@ -183,6 +183,27 @@ class MicLoopTests(unittest.TestCase):
         # not back at last_input (NOW - 200s).
         self.assertEqual(calls[2].kwargs["timestamp"], NOW + timedelta(seconds=5))
 
+    def test_simultaneous_input_and_mic_resume_at_earlier_input(self):
+        calls = self.run_loop([
+            (200.0, False, False, False),
+            (2.0, False, True, False),
+            (7.0, False, True, False),
+        ])
+
+        # Input at t=3 is earlier evidence than the first mic reading at t=5.
+        resume_at = NOW + timedelta(seconds=3)
+        self.assertEqual(calls[2].kwargs["timestamp"], resume_at)
+        self.assertEqual(
+            calls[3].kwargs["timestamp"], resume_at + timedelta(milliseconds=1)
+        )
+        self.assertEqual(calls[4].kwargs["timestamp"], calls[3].kwargs["timestamp"])
+        self.assertEqual(
+            calls[4].kwargs["timestamp"]
+            + timedelta(seconds=calls[4].kwargs["duration"]),
+            NOW + timedelta(seconds=10),
+        )
+        self.assert_events_do_not_overlap(calls)
+
     def test_heartbeats_while_mic_active_stay_anchored(self):
         calls = self.run_loop(
             [

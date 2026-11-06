@@ -118,6 +118,7 @@ class AFKWatcher:
         present_until: Optional[datetime] = None
         # Last reported audio-playback state (None until first observed).
         playback_reported: Optional[bool] = None
+        locked = False
         while True:
             try:
                 if system in ["Darwin", "Linux"] and os.getppid() != self._initial_ppid:
@@ -139,6 +140,7 @@ class AFKWatcher:
                     )
                     sleep(self.settings.poll_time)
                     continue
+                was_locked = locked
                 locked = is_screen_locked()
                 last_input = now - timedelta(seconds=seconds_since_input)
                 # An event starting before the not-afk event it follows cannot
@@ -215,8 +217,17 @@ class AFKWatcher:
                         "No longer AFK" + (" (microphone in use)" if mic_active else "")
                     )
                     if mic_active:
-                        present_anchor = mic_active_since or now
-                        resume_at = present_anchor
+                        resume_at = mic_active_since or now
+                        # Recent HID input can establish presence before the
+                        # first mic observation. Never reach back into the
+                        # preceding AFK period on a non-HID unlock.
+                        if (
+                            not was_locked
+                            and seconds_since_input < self.settings.timeout
+                            and (afk_start is None or last_input > afk_start)
+                        ):
+                            resume_at = min(resume_at, last_input)
+                        present_anchor = resume_at
                     else:
                         # If the last input predates the AFK period (unlock without
                         # HID input, e.g. face/fingerprint unlock), end it at unlock
