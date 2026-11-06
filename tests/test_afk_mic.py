@@ -180,11 +180,19 @@ class MicLoopTests(unittest.TestCase):
         )
 
         self.assertEqual([c.args[0] for c in calls], [False, True, True, False, False])
-        # The trailing not-afk heartbeat must not go behind the transition.
-        self.assertEqual(calls[4].kwargs["timestamp"], NOW + timedelta(seconds=5))
-        # The heartbeat must carry a positive duration so the AW event covers
-        # the ongoing call, not just a zero-duration point at the mic anchor.
-        self.assertGreater(calls[4].kwargs.get("duration", 0), 0)
+        # Preserve master's +1ms floor: the steady heartbeat must start at
+        # the not-AFK transition event, not at the preceding AFK close ping.
+        self.assertEqual(
+            calls[4].kwargs["timestamp"], NOW + timedelta(seconds=5, milliseconds=1)
+        )
+        self.assertEqual(calls[4].kwargs["timestamp"], calls[3].kwargs["timestamp"])
+        # Duration must still extend the call exactly to the current poll.
+        self.assertEqual(calls[4].kwargs["duration"], 4.999)
+        self.assertEqual(
+            calls[4].kwargs["timestamp"]
+            + timedelta(seconds=calls[4].kwargs["duration"]),
+            NOW + timedelta(seconds=10),
+        )
 
     def test_lock_overrides_mic(self):
         # Locked while the mic is in use -> stays AFK; resumes on unlock.
