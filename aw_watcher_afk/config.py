@@ -7,6 +7,10 @@ default_config = """
 [aw-watcher-afk]
 timeout = 180
 poll_time = 5
+host = ""
+port = ""
+auth_user = ""
+auth_password = ""
 
 [aw-watcher-afk-testing]
 timeout = 20
@@ -26,12 +30,16 @@ def parse_args():
 
     default_poll_time = config["poll_time"]
     default_timeout = config["timeout"]
+    default_host = config.get("host", "") or None
+    default_port = config.get("port", "") or None
+    default_auth_user = config.get("auth_user", "")
+    default_auth_password = config.get("auth_password", "")
 
     parser = argparse.ArgumentParser(
         description="A watcher for keyboard and mouse input to detect AFK state."
     )
-    parser.add_argument("--host", dest="host")
-    parser.add_argument("--port", dest="port")
+    parser.add_argument("--host", dest="host", default=default_host)
+    parser.add_argument("--port", dest="port", default=default_port)
     parser.add_argument(
         "--testing", dest="testing", action="store_true", help="run in testing mode"
     )
@@ -46,6 +54,18 @@ def parse_args():
     )
     parser.add_argument(
         "--poll-time", dest="poll_time", type=float, default=default_poll_time
+    )
+    parser.add_argument(
+        "--auth-user",
+        dest="auth_user",
+        default=default_auth_user,
+        help="Username for HTTP Basic Auth (for nginx-proxied servers)",
+    )
+    parser.add_argument(
+        "--auth-password",
+        dest="auth_password",
+        default=default_auth_password,
+        help="Password for HTTP Basic Auth (for nginx-proxied servers)",
     )
     parsed_args = parser.parse_args()
     return parsed_args
