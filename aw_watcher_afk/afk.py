@@ -247,8 +247,9 @@ class AFKWatcher:
                     # When the lock is the trigger and HID idle is still below
                     # the timeout, AFK starts at lock detection, not last_input,
                     # so pre-lock (unlocked) idle time isn't counted as AFK.
-                    lock_triggered = (
-                        locked and seconds_since_input < self.settings.timeout
+                    lock_triggered = locked and (
+                        seconds_since_input < self.settings.timeout
+                        or present_anchor is not None
                     )
                     if lock_triggered:
                         afk_start = now

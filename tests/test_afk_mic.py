@@ -15,26 +15,20 @@ from aw_watcher_afk.audio import (
 NOW = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 POLL_TIME = 5
 
-# Real ``pactl list short source-outputs`` layout:
-#   <stream-index>  <driver>  <client-index(numeric)>  <source-name>  ...
-# Column 2 is a numeric client id; column 3 is the source/sink device name.
-MIC_STREAM = (
-    "5\tmodule-null-sink.c\t22\talsa_input.pci-0000_00_1f.3.analog-stereo\n"
-)
-PLAYBACK_STREAM = (
-    "9\tmodule-always-sink.c\t33\talsa_output.pci-0000_00_1f.3.analog-stereo\n"
-)
-MONITOR_STREAM = (
-    "3\tmodule-loopback.c\t8\t"
-    "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor\n"
+# Short stream rows contain numeric device indices, not device names.
+MIC_STREAM = "5\t4\t22\tprotocol-native.c\ts16le 2ch 44100Hz\n"
+PLAYBACK_STREAM = "9\t4\t33\tprotocol-native.c\ts16le 2ch 44100Hz\n"
+MONITOR_STREAM = "3\t8\t22\tprotocol-native.c\ts16le 2ch 44100Hz\n"
+DEVICES = (
+    "4\talsa_input.pci-0000_00_1f.3.analog-stereo\tmodule-alsa-card.c\n"
+    "8\talsa_output.pci-0000_00_1f.3.analog-stereo.monitor\tmodule-alsa-card.c\n"
 )
 
 
 class ParserTests(unittest.TestCase):
-    def test_parse_targets_from_fourth_column(self):
-        # Column 3 (0-indexed) is the source/sink name; column 2 is numeric client id.
+    def test_resolve_numeric_stream_target(self):
         self.assertEqual(
-            _parse_stream_targets(MIC_STREAM),
+            _parse_stream_targets(MIC_STREAM, DEVICES),
             ["alsa_input.pci-0000_00_1f.3.analog-stereo"],
         )
 
@@ -43,44 +37,63 @@ class ParserTests(unittest.TestCase):
         self.assertFalse(_has_non_monitor_stream(""))
 
     def test_non_monitor_stream_detected(self):
-        self.assertTrue(_has_non_monitor_stream(MIC_STREAM))
+        self.assertTrue(_has_non_monitor_stream(MIC_STREAM, DEVICES))
 
     def test_monitor_stream_is_not_user_activity(self):
-        self.assertFalse(_has_non_monitor_stream(MONITOR_STREAM))
+        self.assertFalse(_has_non_monitor_stream(MONITOR_STREAM, DEVICES))
 
     def test_mixed_streams_count_when_any_is_non_monitor(self):
-        self.assertTrue(_has_non_monitor_stream(MONITOR_STREAM + MIC_STREAM))
+        self.assertTrue(_has_non_monitor_stream(MONITOR_STREAM + MIC_STREAM, DEVICES))
 
-    def test_short_malformed_line_counts_as_a_stream(self):
-        # A line too short to parse still means some stream exists.
-        self.assertTrue(_has_non_monitor_stream("7\n"))
+    def test_short_malformed_line_is_unknown(self):
+        self.assertIsNone(_has_non_monitor_stream("7\n", DEVICES))
+
+    def test_missing_device_metadata_is_unknown(self):
+        self.assertIsNone(_has_non_monitor_stream(MONITOR_STREAM, ""))
 
 
 class DetectorTests(unittest.TestCase):
     def test_unavailable_without_pactl(self):
-        detector = AudioActivityDetector(pactl=None)
+        with patch("aw_watcher_afk.audio._pactl_path", return_value=None):
+            detector = AudioActivityDetector(pactl=None)
         self.assertFalse(detector.available())
         self.assertIsNone(detector.is_microphone_in_use())
         self.assertIsNone(detector.is_audio_playing())
 
     def test_microphone_in_use(self):
         detector = AudioActivityDetector(pactl="/usr/bin/pactl")
-        with patch("aw_watcher_afk.audio._run_pactl", return_value=MIC_STREAM) as run:
+        with patch("aw_watcher_afk.audio._run_pactl", side_effect=[MIC_STREAM, DEVICES]) as run:
             self.assertIs(detector.is_microphone_in_use(), True)
-        self.assertEqual(run.call_args.args[1], "source-outputs")
+        self.assertEqual([c.args[1] for c in run.call_args_list], ["source-outputs", "sources"])
 
     def test_microphone_monitor_only_is_not_in_use(self):
         detector = AudioActivityDetector(pactl="/usr/bin/pactl")
-        with patch("aw_watcher_afk.audio._run_pactl", return_value=MONITOR_STREAM):
+        with patch("aw_watcher_afk.audio._run_pactl", side_effect=[MONITOR_STREAM, DEVICES]):
             self.assertIs(detector.is_microphone_in_use(), False)
 
     def test_audio_playing(self):
         detector = AudioActivityDetector(pactl="/usr/bin/pactl")
         with patch(
-            "aw_watcher_afk.audio._run_pactl", return_value=PLAYBACK_STREAM
+            "aw_watcher_afk.audio._run_pactl", side_effect=[PLAYBACK_STREAM, DEVICES]
         ) as run:
             self.assertIs(detector.is_audio_playing(), True)
-        self.assertEqual(run.call_args.args[1], "sink-inputs")
+        self.assertEqual([c.args[1] for c in run.call_args_list], ["sink-inputs", "sinks"])
+
+    def test_device_query_failure_is_unknown(self):
+        detector = AudioActivityDetector(pactl="/usr/bin/pactl")
+        with patch("aw_watcher_afk.audio._run_pactl", side_effect=[MIC_STREAM, None]):
+            self.assertIsNone(detector.is_microphone_in_use())
+
+    def test_missing_device_is_unknown(self):
+        detector = AudioActivityDetector(pactl="/usr/bin/pactl")
+        with patch("aw_watcher_afk.audio._run_pactl", side_effect=[MIC_STREAM, ""]):
+            self.assertIsNone(detector.is_microphone_in_use())
+
+    def test_no_streams_needs_no_device_query(self):
+        detector = AudioActivityDetector(pactl="/usr/bin/pactl")
+        with patch("aw_watcher_afk.audio._run_pactl", return_value="") as run:
+            self.assertIs(detector.is_microphone_in_use(), False)
+        self.assertEqual(run.call_count, 1)
 
     def test_query_failure_is_unknown(self):
         detector = AudioActivityDetector(pactl="/usr/bin/pactl")
@@ -193,6 +206,17 @@ class MicLoopTests(unittest.TestCase):
             + timedelta(seconds=calls[4].kwargs["duration"]),
             NOW + timedelta(seconds=10),
         )
+
+    def test_lock_immediately_after_mic_resume_starts_at_lock(self):
+        calls = self.run_loop([
+            (200.0, False, False, False),
+            (205.0, False, True, False),
+            (210.0, True, None, False),
+        ])
+        self.assertEqual(
+            calls[-2].kwargs["timestamp"], NOW + timedelta(seconds=10)
+        )
+        self.assert_events_do_not_overlap(calls)
 
     def test_lock_overrides_mic(self):
         # Locked while the mic is in use -> stays AFK; resumes on unlock.

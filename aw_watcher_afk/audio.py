@@ -34,39 +34,42 @@ def _pactl_path() -> Optional[str]:
     return shutil.which("pactl")
 
 
-def _parse_stream_targets(output: str) -> List[str]:
-    """Return the source/sink name for each stream in ``pactl list short``.
+def _parse_stream_targets(output: str, devices: str = "") -> List[str]:
+    """Resolve short stream rows against short source/sink device rows.
 
-    The short output of ``pactl list short source-outputs`` and
-    ``... sink-inputs`` is tab-separated with the layout::
-
-        <stream-index>  <driver>  <client-index>  <source-or-sink-name>  ...
-
-    The **fourth** column (index 3) identifies the source (for a recording
-    stream) or the sink (for a playback stream).  The third column
-    (index 2) is a numeric client index, not a device name.
-
-    Lines too short to parse still indicate that *a* stream exists, so they
-    are returned as an empty target (which counts as a non-monitor stream).
+    Streams contain index, device index, client index, driver and sample spec.
+    Devices contain index, name, driver and sample spec. An unresolved device
+    is returned as an empty target, so callers can report unknown rather than
+    mistaking the stream driver for a microphone device name.
     """
+    names = {}
+    for row in devices.splitlines():
+        columns = row.split("\t")
+        if len(columns) >= 2:
+            names[columns[0]] = columns[1]
     targets: List[str] = []
     for line in output.splitlines():
         line = line.strip()
         if not line:
             continue
         fields = line.split("\t")
-        targets.append(fields[3] if len(fields) >= 4 else "")
+        targets.append(names.get(fields[1], "") if len(fields) >= 2 else "")
     return targets
 
 
-def _has_non_monitor_stream(output: str) -> bool:
+def _has_non_monitor_stream(output: str, devices: str = "") -> Optional[bool]:
     """True if any stream targets a device that is not a monitor.
 
     Monitor sources/sinks (e.g. ``alsa_output....monitor``) represent system
     audio capture, not the microphone or real playback, so they must not be
     counted as user activity.
     """
-    return any(".monitor" not in target for target in _parse_stream_targets(output))
+    targets = _parse_stream_targets(output, devices)
+    if any(target and ".monitor" not in target for target in targets):
+        return True
+    if any(not target for target in targets):
+        return None
+    return False
 
 
 def _run_pactl(pactl: str, kind: str) -> Optional[str]:
@@ -110,14 +113,24 @@ class AudioActivityDetector:
         output = self._query("source-outputs")
         if output is None:
             return None
-        return _has_non_monitor_stream(output)
+        if not output.strip():
+            return False
+        sources = self._query("sources")
+        if sources is None:
+            return None
+        return _has_non_monitor_stream(output, sources)
 
     def is_audio_playing(self) -> Optional[bool]:
         """True while a non-monitor sink has an active playback stream."""
         output = self._query("sink-inputs")
         if output is None:
             return None
-        return _has_non_monitor_stream(output)
+        if not output.strip():
+            return False
+        sinks = self._query("sinks")
+        if sinks is None:
+            return None
+        return _has_non_monitor_stream(output, sinks)
 
 
 _detector = AudioActivityDetector()

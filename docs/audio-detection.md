@@ -32,7 +32,10 @@ so a locked session stays AFK even while the mic is in use.
 
 - **Linux** (this prototype): PulseAudio/PipeWire via
   `pactl list short source-outputs` (recording streams) and
-  `pactl list short sink-inputs` (playback streams). Monitor sources/sinks
+  `pactl list short sink-inputs` (playback streams). Their numeric device
+  indices are resolved through `pactl list short sources` / `sinks`; missing
+  device metadata is unknown (including devices disappearing between queries),
+  not evidence of microphone activity. Monitor sources/sinks
   (`*.monitor`) are excluded — they are system-audio capture, not user
   activity. PipeWire-only systems without the PulseAudio compat layer
   (`pactl` absent) degrade to a no-op.
