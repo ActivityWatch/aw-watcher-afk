@@ -69,6 +69,14 @@ Equivalent flags: `--detect-mic`, `--detect-audio-playback`.
   watcher stays not-AFK even past `timeout`. When returning from AFK, the event
   is anchored at the moment capture was first observed, so the whole call is
   counted as present rather than just from the last input event.
+- A failed microphone query preserves the previous active state for less than
+  one `timeout` since the last successful active reading. At the first poll
+  reaching that bound, stale mic evidence is discarded and ordinary input/lock
+  detection applies. AFK starts no earlier than the last presence heartbeat;
+  expiry does not back-date over the tolerated failure interval. A successful
+  active reading refreshes the grace period, and recovery after expiry starts
+  a new presence spell. Thus a transient failure need not interrupt a call,
+  but a permanently broken `pactl` cannot imply presence indefinitely.
 - Mic-kept presence ends where the call was last seen. A later AFK period
   starts there, not at the (earlier) last input, so the two never overlap.
   Without the mic, not-AFK heartbeats stay zero-length at the last input.

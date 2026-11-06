@@ -110,6 +110,7 @@ class AFKWatcher:
         # spell; anchors a mic-driven not-AFK transition so the whole call is
         # counted as present, not just from the last input event.
         mic_active_since: Optional[datetime] = None
+        mic_last_confirmed: Optional[datetime] = None
         # Anchor for not-AFK heartbeats while the microphone keeps us present.
         present_anchor: Optional[datetime] = None
         # How far mic-kept presence has been reported. A later AFK interval
@@ -159,6 +160,7 @@ class AFKWatcher:
                 if self.settings.detect_mic and not locked:
                     in_use = is_microphone_in_use()
                     if in_use:
+                        mic_last_confirmed = now
                         if mic_active_since is None:
                             mic_active_since = now
                             logger.info("Microphone in use; treating as not-AFK")
@@ -172,8 +174,17 @@ class AFKWatcher:
                             present_until = now
                         mic_active = False
                     else:
-                        # in_use is None: query failed — preserve last known state
-                        # so a transient pactl timeout does not interrupt an ongoing call.
+                        # Tolerate transient failures, but stale microphone
+                        # evidence cannot keep an idle user present forever.
+                        # Use the normal idle timeout as the freshness bound.
+                        if (
+                            mic_active_since is not None
+                            and mic_last_confirmed is not None
+                            and (now - mic_last_confirmed).total_seconds()
+                            >= self.settings.timeout
+                        ):
+                            logger.info("Microphone query grace expired")
+                            mic_active_since = None
                         mic_active = mic_active_since is not None
 
                 # Audio output is a weak signal (it may be background music),

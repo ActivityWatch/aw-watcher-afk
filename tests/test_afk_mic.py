@@ -238,6 +238,47 @@ class MicLoopTests(unittest.TestCase):
         self.assertEqual([c.args[0] for c in calls], [False, True, True, False, False])
         self.assertFalse(calls[-1].args[0])
 
+    def test_prolonged_query_failure_expires_mic_presence(self):
+        samples = [(200.0, False, True, False)] + [
+            (200.0 + POLL_TIME * k, False, None, False) for k in range(1, 37)
+        ]
+        calls = self.run_loop(samples)
+
+        # One idle timeout of unknown readings exhausts the grace period.
+        self.assertTrue(calls[-1].args[0])
+        self.assertEqual(
+            calls[-1].kwargs["timestamp"],
+            NOW + timedelta(seconds=175, milliseconds=1),
+        )
+        self.assert_events_do_not_overlap(calls)
+
+    def test_successful_mic_query_refreshes_failure_grace(self):
+        samples = [(200.0, False, True, False)] + [
+            (200.0 + POLL_TIME * k, False, None, False) for k in range(1, 36)
+        ] + [(380.0, False, True, False), (385.0, False, None, False)]
+        calls = self.run_loop(samples)
+
+        self.assertTrue(all(not c.args[0] for c in calls))
+        self.assertEqual(
+            calls[-1].kwargs["timestamp"]
+            + timedelta(seconds=calls[-1].kwargs["duration"]),
+            NOW + timedelta(seconds=185),
+        )
+
+    def test_mic_recovery_after_failure_expiry_starts_new_presence(self):
+        samples = [(200.0, False, True, False)] + [
+            (200.0 + POLL_TIME * k, False, None, False) for k in range(1, 38)
+        ] + [(390.0, False, True, False)]
+        calls = self.run_loop(samples)
+
+        self.assertTrue(calls[-2].args[0])
+        self.assertFalse(calls[-1].args[0])
+        self.assertEqual(
+            calls[-1].kwargs["timestamp"],
+            NOW + timedelta(seconds=190, milliseconds=1),
+        )
+        self.assert_events_do_not_overlap(calls)
+
     def test_afk_start_anchored_at_now_when_call_ends_while_idle(self):
         # When the mic ends after the idle timeout has already passed, the new
         # AFK interval must start at detection time (NOW+10s), not at
