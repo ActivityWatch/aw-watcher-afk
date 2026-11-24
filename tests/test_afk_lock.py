@@ -126,11 +126,14 @@ class ScreenLockTests(unittest.TestCase):
         self.assertEqual(
             [c.args[0] for c in calls], [False, True, True, False, False, True]
         )
-        self.assertEqual(calls[4].kwargs["timestamp"], unlock)
+        # The not-afk event starts at unlock + 1ms; its closing ping must not
+        # predate it, or it is stored as a separate 0-duration event (#61).
+        self.assertEqual(calls[3].kwargs["timestamp"], unlock + timedelta(milliseconds=1))
+        self.assertEqual(calls[4].kwargs["timestamp"], unlock + timedelta(milliseconds=1))
         self.assertEqual(
-            calls[5].kwargs["timestamp"], unlock + timedelta(milliseconds=1)
+            calls[5].kwargs["timestamp"], unlock + timedelta(milliseconds=2)
         )
-        self.assertEqual(calls[5].kwargs["duration"], 5.0)
+        self.assertEqual(calls[5].kwargs["duration"], 4.999)
 
     def test_idle_timeout_still_starts_afk_at_last_input(self):
         calls = self.run_loop([(200.0, False)])
@@ -202,3 +205,27 @@ class ScreenLockTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_become_afk_after_return_without_new_input_stays_ordered(self):
+        # Return from AFK with a single input, then no further input until the
+        # timeout. last_input still equals afk_end, 1ms before the not-afk
+        # event, so the not-afk closing ping of the next AFK transition would
+        # fail heartbeat_merge and be stored as a 0-duration duplicate
+        # (aw-watcher-afk#61, seen live under Xvfb after #91).
+        #
+        #   poll 1: 200s idle → AFK
+        #   poll 2: 2s idle → not-afk event at NOW + 3s + 1ms
+        #   poll 3: 183s idle (≥ timeout) → becomes AFK again
+        calls = self.run_loop([(200.0, False), (2.0, False), (183.0, False)])
+
+        self.assertEqual(
+            [c.args[0] for c in calls], [False, True, True, False, False, True]
+        )
+        not_afk_event_ts = calls[3].kwargs["timestamp"]
+        self.assertEqual(not_afk_event_ts, NOW + timedelta(seconds=3, milliseconds=1))
+        self.assertGreaterEqual(
+            calls[4].kwargs["timestamp"],
+            not_afk_event_ts,
+            "not-afk closing ping predates the not-afk event (#61)",
+        )
+        self.assertGreater(calls[5].kwargs["timestamp"], calls[4].kwargs["timestamp"])

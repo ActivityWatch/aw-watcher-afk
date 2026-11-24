@@ -109,8 +109,11 @@ class AFKWatcher:
                 # merge into it and is stored separately (see aw-watcher-afk#61).
                 # After an unlock without HID input, last_input still predates
                 # the not-afk period, so anchor on that period's start instead.
-                if not_afk_start is not None and last_input < not_afk_start:
-                    last_input = not_afk_start
+                # The not-afk event itself starts at not_afk_start + 1ms, so
+                # clamp to that: the closing ping when becoming AFK again would
+                # otherwise land 1ms early and be stored as a duplicate.
+                if not_afk_start is not None and last_input < not_afk_start + td1ms:
+                    last_input = not_afk_start + td1ms
                 logger.debug(f"Seconds since last input: {seconds_since_input}")
                 logger.debug(f"Screen locked: {locked}")
 
