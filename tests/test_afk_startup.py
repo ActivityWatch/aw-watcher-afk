@@ -55,7 +55,14 @@ class OfflineStartupTests(unittest.TestCase):
             reservation.bind(("127.0.0.1", 0))
             port = reservation.getsockname()[1]
         self.watcher = AFKWatcher(
-            SimpleNamespace(host="127.0.0.1", port=port, timeout=10, poll_time=0.01),
+            SimpleNamespace(
+                host="127.0.0.1",
+                port=port,
+                timeout=10,
+                poll_time=0.01,
+                detect_mic=False,
+                detect_audio_playback=False,
+            ),
             testing=True,
         )
         self.queue = self.watcher.client.request_queue
