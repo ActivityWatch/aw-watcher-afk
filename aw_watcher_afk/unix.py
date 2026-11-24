@@ -1,17 +1,23 @@
 import logging
+import sys
 import time
 from time import sleep
 
 from .listeners import GamepadListener, KeyboardListener, MouseListener
 
 # Idle time is elapsed time, so measure it on a clock that DST changes, NTP
-# steps and manual clock changes can't move. CLOCK_BOOTTIME also keeps counting
-# during suspend, so a resume without input still reports the time away.
-_CLOCK = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
+# steps and manual clock changes can't move. On Linux, CLOCK_BOOTTIME also
+# keeps counting during suspend, so a resume without input still reports the
+# time away.
+if sys.platform.startswith("linux"):
 
+    def _elapsed() -> float:
+        return time.clock_gettime(time.CLOCK_BOOTTIME)
 
-def _elapsed() -> float:
-    return time.clock_gettime(_CLOCK)
+else:
+
+    def _elapsed() -> float:
+        return time.monotonic()
 
 
 class LastInputUnix:
