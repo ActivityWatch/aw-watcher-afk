@@ -109,8 +109,11 @@ class AFKWatcher:
                 # merge into it and is stored separately (see aw-watcher-afk#61).
                 # After an unlock without HID input, last_input still predates
                 # the not-afk period, so anchor on that period's start instead.
-                if not_afk_start is not None and last_input < not_afk_start:
-                    last_input = not_afk_start
+                # The not-afk event itself starts at not_afk_start + 1ms, so
+                # clamp to that: the closing ping when becoming AFK again would
+                # otherwise land 1ms early and be stored as a duplicate.
+                if not_afk_start is not None and last_input < not_afk_start + td1ms:
+                    last_input = not_afk_start + td1ms
                 logger.debug(f"Seconds since last input: {seconds_since_input}")
                 logger.debug(f"Screen locked: {locked}")
 
@@ -171,17 +174,10 @@ class AFKWatcher:
                             duration=(now - start).total_seconds(),
                         )
                     else:
-                        # Steady-state not-afk heartbeats must not predate
-                        # the not-afk event that started at not_afk_start +
-                        # 1ms. An earlier timestamp fails heartbeat_merge and
-                        # is stored as a duplicate (see aw-watcher-afk#61).
-                        ts = last_input
-                        if (
-                            not_afk_start is not None
-                            and ts < not_afk_start + td1ms
-                        ):
-                            ts = not_afk_start + td1ms
-                        self.ping(afk, timestamp=ts)
+                        # last_input is already clamped to not_afk_start + 1ms
+                        # above, so this heartbeat can't predate the not-afk
+                        # event it extends (see aw-watcher-afk#61).
+                        self.ping(afk, timestamp=last_input)
 
                 sleep(self.settings.poll_time)
 
