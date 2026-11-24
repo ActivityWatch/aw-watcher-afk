@@ -1,8 +1,17 @@
 import logging
-from datetime import datetime
+import time
 from time import sleep
 
 from .listeners import GamepadListener, KeyboardListener, MouseListener
+
+# Idle time is elapsed time, so measure it on a clock that DST changes, NTP
+# steps and manual clock changes can't move. CLOCK_BOOTTIME also keeps counting
+# during suspend, so a resume without input still reports the time away.
+_CLOCK = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
+
+
+def _elapsed() -> float:
+    return time.clock_gettime(_CLOCK)
 
 
 class LastInputUnix:
@@ -11,7 +20,7 @@ class LastInputUnix:
         # self.logger.setLevel(logging.DEBUG)
 
         self._start_listeners()
-        self.last_activity = datetime.now()
+        self.last_activity = _elapsed()
 
     def _start_listeners(self):
         self.mouseListener = MouseListener()
@@ -73,14 +82,19 @@ class LastInputUnix:
             # to avoid duplicate listener instances (e.g. if only one died)
             self._stop_listeners()
             self._start_listeners()
-            # Reset last_activity so we don't report a huge AFK gap
-            self.last_activity = datetime.now()
+            # A dead keyboard or mouse listener couldn't record input, so its
+            # stale last_activity would report a false AFK gap: reset it. A
+            # gamepad dying (e.g. a controller powering off while the user is
+            # away) says nothing about keyboard/mouse input, so keep the idle
+            # time rather than marking an away user as active.
+            if mouse_kb_died:
+                self.last_activity = _elapsed()
 
     def seconds_since_last_input(self) -> float:
         # TODO: This has a delay of however often it is called.
         #       Could be solved by creating a custom listener.
         self._check_listeners()
-        now = datetime.now()
+        now = _elapsed()
         has_event = (
             self.mouseListener.has_new_event()
             or self.keyboardListener.has_new_event()
@@ -93,7 +107,7 @@ class LastInputUnix:
             self.mouseListener.next_event()
             self.keyboardListener.next_event()
             self.gamepadListener.next_event()
-        return (now - self.last_activity).total_seconds()
+        return now - self.last_activity
 
 
 _last_input_unix = None
