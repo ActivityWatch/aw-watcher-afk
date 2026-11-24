@@ -202,10 +202,6 @@ class ScreenLockTests(unittest.TestCase):
             " — would be stored as a same-timestamp duplicate (#61)",
         )
 
-
-if __name__ == "__main__":
-    unittest.main()
-
     def test_become_afk_after_return_without_new_input_stays_ordered(self):
         # Return from AFK with a single input, then no further input until the
         # timeout. last_input still equals afk_end, 1ms before the not-afk
@@ -229,3 +225,7 @@ if __name__ == "__main__":
             "not-afk closing ping predates the not-afk event (#61)",
         )
         self.assertGreater(calls[5].kwargs["timestamp"], calls[4].kwargs["timestamp"])
+
+
+if __name__ == "__main__":
+    unittest.main()
