@@ -84,6 +84,26 @@ class LastInputUnix:
             self.logger.warning(
                 "Input listeners died (X server restart?), reinitializing..."
             )
+        # When recovering the keyboard or mouse listener (e.g. after an X
+        # server restart), also rescan for gamepads if none is being read: a
+        # controller connected since the last scan would otherwise stay
+        # invisible, because needs_restart() is False when no gamepad was found.
+        rescan_gamepad = gamepad_died or (
+            (mouse_died or keyboard_died) and not self.gamepadListener.is_alive()
+        )
+        # A listener being replaced may still hold input recorded before it
+        # died (e.g. a button pressed just before the controller disconnected).
+        # Harvest it now, since the poll after this only sees the new listeners.
+        replaced = [
+            listener
+            for died, listener in (
+                (mouse_died, self.mouseListener),
+                (keyboard_died, self.keyboardListener),
+                (rescan_gamepad, self.gamepadListener),
+            )
+            if died
+        ]
+        had_pending_input = any(listener.has_new_event() for listener in replaced)
         # Restart only the listeners that actually died. Stopping a healthy
         # pynput listener discards events it has already buffered, and stopping
         # a healthy keyboard listener also drops its held-key state, so
@@ -95,7 +115,7 @@ class LastInputUnix:
         if keyboard_died:
             self.keyboardListener.stop()
             self._start_keyboard_listener()
-        if gamepad_died:
+        if rescan_gamepad:
             self.gamepadListener.stop()
             self._start_gamepad_listener()
         # A dead keyboard or mouse listener couldn't record input, so its
@@ -103,7 +123,7 @@ class LastInputUnix:
         # gamepad dying (e.g. a controller powering off while the user is
         # away) says nothing about keyboard/mouse input, so keep the idle
         # time rather than marking an away user as active.
-        if mouse_died or keyboard_died:
+        if mouse_died or keyboard_died or had_pending_input:
             self.last_activity = _elapsed()
 
     def seconds_since_last_input(self) -> float:

@@ -82,9 +82,11 @@ def test_unix_reinitializes_dead_listeners(MockGamepad, MockMouse, MockKeyboard)
 
     unix.seconds_since_last_input()
 
-    # Listeners should have been restarted (new instances created)
+    # Only the dead keyboard listener is restarted; the healthy mouse listener
+    # keeps its buffered events. No gamepad reader is running, so recovery also
+    # rescans for a controller connected since the last scan.
     assert MockKeyboard.call_count == 2
-    assert MockMouse.call_count == 2
+    assert MockMouse.call_count == 1
     assert MockGamepad.call_count == 2
 
 
@@ -272,8 +274,9 @@ def test_gamepad_needs_restart_false_after_stop():
 @patch("aw_watcher_afk.unix.GamepadListener")
 def test_unix_restarts_when_only_gamepad_dies(MockGamepad, MockMouse, MockKeyboard):
     """If the gamepad listener dies but mouse/keyboard are still alive, the
-    listeners should still be reinitialized so a reconnected gamepad starts
-    being tracked again (regression for the original bug)."""
+    gamepad listener should still be reinitialized so a reconnected gamepad
+    starts being tracked again (regression for the original bug). The healthy
+    mouse/keyboard listeners are left running so their buffered input is kept."""
     from aw_watcher_afk.unix import LastInputUnix
 
     mock_kb = MockKeyboard.return_value
@@ -299,9 +302,9 @@ def test_unix_restarts_when_only_gamepad_dies(MockGamepad, MockMouse, MockKeyboa
 
     unix.seconds_since_last_input()
 
-    # All listeners should have been recreated
-    assert MockKeyboard.call_count == 2
-    assert MockMouse.call_count == 2
+    # Only the gamepad listener is recreated
+    assert MockKeyboard.call_count == 1
+    assert MockMouse.call_count == 1
     assert MockGamepad.call_count == 2
 
 
