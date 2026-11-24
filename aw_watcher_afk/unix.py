@@ -9,6 +9,12 @@ from .listeners import GamepadListener, KeyboardListener, MouseListener
 # steps and manual clock changes can't move. On Linux, CLOCK_BOOTTIME also
 # keeps counting during suspend, so a resume without input still reports the
 # time away.
+#
+# This module is the Linux implementation: afk.py imports it only when
+# platform.system() == "Linux" (Darwin uses macos.py, Windows uses windows.py).
+# The monotonic fallback exists so the module can still be imported by tests on
+# other platforms (CLOCK_BOOTTIME is Linux-only); it is not a macOS/BSD code
+# path in production.
 if sys.platform.startswith("linux"):
 
     def _elapsed() -> float:
@@ -29,25 +35,23 @@ class LastInputUnix:
         self.last_activity = _elapsed()
 
     def _start_listeners(self):
+        self._start_mouse_listener()
+        self._start_keyboard_listener()
+        self._start_gamepad_listener()
+
+    def _start_mouse_listener(self):
         self.mouseListener = MouseListener()
         self.mouseListener.start()
 
+    def _start_keyboard_listener(self):
         self.keyboardListener = KeyboardListener()
         self.keyboardListener.start()
 
+    def _start_gamepad_listener(self):
         # Optional: gamepad support via evdev (Linux only).
         # Starts silently if evdev is not installed or no gamepads are found.
         self.gamepadListener = GamepadListener()
         self.gamepadListener.start()
-
-    def _stop_listeners(self):
-        """Stop existing listeners to avoid duplicate instances."""
-        if self.mouseListener.is_alive():
-            self.mouseListener.stop()
-        if self.keyboardListener.is_alive():
-            self.keyboardListener.stop()
-        if self.gamepadListener.is_alive():
-            self.gamepadListener.stop()
 
     def _check_listeners(self):
         """Check if input listeners are still alive, restart if dead.
@@ -62,39 +66,45 @@ class LastInputUnix:
         # and all its threads died (e.g. device unplugged). Without this guard,
         # systems without a gamepad would trigger a restart on every poll,
         # since is_alive() is always False when start() returned early.
+        mouse_died = not self.mouseListener.is_alive()
+        keyboard_died = not self.keyboardListener.is_alive()
         gamepad_died = self.gamepadListener.needs_restart()
-        if (
-            not self.mouseListener.is_alive()
-            or not self.keyboardListener.is_alive()
-            or gamepad_died
-        ):
-            mouse_kb_died = (
-                not self.mouseListener.is_alive()
-                or not self.keyboardListener.is_alive()
+        if not (mouse_died or keyboard_died or gamepad_died):
+            return
+
+        if gamepad_died and (mouse_died or keyboard_died):
+            self.logger.warning(
+                "All input listeners died (X server restart?), reinitializing..."
             )
-            if gamepad_died and mouse_kb_died:
-                self.logger.warning(
-                    "All input listeners died (X server restart?), reinitializing..."
-                )
-            elif gamepad_died:
-                self.logger.warning(
-                    "Gamepad listener died (device removed?), reinitializing..."
-                )
-            else:
-                self.logger.warning(
-                    "Input listeners died (X server restart?), reinitializing..."
-                )
-            # Stop any still-running listeners before creating new ones
-            # to avoid duplicate listener instances (e.g. if only one died)
-            self._stop_listeners()
-            self._start_listeners()
-            # A dead keyboard or mouse listener couldn't record input, so its
-            # stale last_activity would report a false AFK gap: reset it. A
-            # gamepad dying (e.g. a controller powering off while the user is
-            # away) says nothing about keyboard/mouse input, so keep the idle
-            # time rather than marking an away user as active.
-            if mouse_kb_died:
-                self.last_activity = _elapsed()
+        elif gamepad_died:
+            self.logger.warning(
+                "Gamepad listener died (device removed?), reinitializing..."
+            )
+        else:
+            self.logger.warning(
+                "Input listeners died (X server restart?), reinitializing..."
+            )
+        # Restart only the listeners that actually died. Stopping a healthy
+        # pynput listener discards events it has already buffered, and stopping
+        # a healthy keyboard listener also drops its held-key state, so
+        # restarting everything because a gamepad disconnected could lose input
+        # that has not been polled yet.
+        if mouse_died:
+            self.mouseListener.stop()
+            self._start_mouse_listener()
+        if keyboard_died:
+            self.keyboardListener.stop()
+            self._start_keyboard_listener()
+        if gamepad_died:
+            self.gamepadListener.stop()
+            self._start_gamepad_listener()
+        # A dead keyboard or mouse listener couldn't record input, so its
+        # stale last_activity would report a false AFK gap: reset it. A
+        # gamepad dying (e.g. a controller powering off while the user is
+        # away) says nothing about keyboard/mouse input, so keep the idle
+        # time rather than marking an away user as active.
+        if mouse_died or keyboard_died:
+            self.last_activity = _elapsed()
 
     def seconds_since_last_input(self) -> float:
         # TODO: This has a delay of however often it is called.
