@@ -36,6 +36,9 @@ def _listener_mock():
     return listener
 
 
+_NAIVE_EPOCH = datetime(1970, 1, 1)
+
+
 class FakeClocks:
     """Elapsed clock plus a local wall clock that can jump independently."""
 
@@ -66,23 +69,30 @@ class WallClockJumpTests(unittest.TestCase):
             patch("aw_watcher_afk.unix.KeyboardListener", side_effect=_listener_mock),
             patch("aw_watcher_afk.unix.GamepadListener", side_effect=_listener_mock),
             patch("aw_watcher_afk.unix.datetime", fake_datetime, create=True),
+            # time.clock_gettime doesn't exist on Windows, where this module
+            # is still imported by the test suite.
             patch.object(
-                unix.time, "clock_gettime", side_effect=lambda _clk: clocks.elapsed
+                unix.time,
+                "clock_gettime",
+                side_effect=lambda _clk: clocks.elapsed,
+                create=True,
             ),
             patch.object(unix.time, "monotonic", side_effect=lambda: clocks.elapsed),
+            # Seconds since a naive epoch, so the fake wall clock jumps the same
+            # in every local timezone (a naive .timestamp() would apply the
+            # machine's own DST rules and could cancel the jump).
             patch.object(
-                unix.time, "time", side_effect=lambda: clocks.wall.timestamp()
+                unix.time,
+                "time",
+                side_effect=lambda: (clocks.wall - _NAIVE_EPOCH).total_seconds(),
             ),
         ]
         for patcher in patchers:
             patcher.start()
-        try:
-            watcher = unix.LastInputUnix()
-            clocks.advance(5, wall=wall_after)
-            return watcher.seconds_since_last_input()
-        finally:
-            for patcher in reversed(patchers):
-                patcher.stop()
+            self.addCleanup(patcher.stop)
+        watcher = unix.LastInputUnix()
+        clocks.advance(5, wall=wall_after)
+        return watcher.seconds_since_last_input()
 
     def test_dst_fall_back_does_not_give_negative_idle(self):
         # 5 s pass while the local wall clock falls back one hour. The old
@@ -151,6 +161,22 @@ class UnixIdleClockTests(unittest.TestCase):
         old_gamepad.needs_restart.return_value = True
         self.assertAlmostEqual(watcher.seconds_since_last_input(), 0.0)
         self.assertIs(watcher.gamepadListener, new_gamepad)
+
+    def test_gamepad_press_recorded_while_stopping_is_counted(self):
+        # A live reader thread (e.g. a second controller) records a press
+        # after the dead-listener check but before stop() has joined it. The
+        # event flag survives stop(), so it must be read after stopping.
+        old_gamepad, new_gamepad = _listener_mock(), _listener_mock()
+        self.gamepad.side_effect = [old_gamepad, new_gamepad]
+        watcher = unix.LastInputUnix()
+        self.clock.advance(600)
+        old_gamepad.needs_restart.return_value = True
+
+        def press_during_stop():
+            old_gamepad.has_new_event.return_value = True
+
+        old_gamepad.stop.side_effect = press_during_stop
+        self.assertAlmostEqual(watcher.seconds_since_last_input(), 0.0)
 
     def test_gamepad_only_restart_keeps_pending_mouse_input(self):
         # A click is buffered on the healthy mouse listener when the controller

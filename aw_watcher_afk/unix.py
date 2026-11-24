@@ -91,32 +91,31 @@ class LastInputUnix:
         rescan_gamepad = gamepad_died or (
             (mouse_died or keyboard_died) and not self.gamepadListener.is_alive()
         )
-        # A listener being replaced may still hold input recorded before it
-        # died (e.g. a button pressed just before the controller disconnected).
-        # Harvest it now, since the poll after this only sees the new listeners.
-        replaced = [
-            listener
-            for died, listener in (
-                (mouse_died, self.mouseListener),
-                (keyboard_died, self.keyboardListener),
-                (rescan_gamepad, self.gamepadListener),
-            )
-            if died
-        ]
-        had_pending_input = any(listener.has_new_event() for listener in replaced)
         # Restart only the listeners that actually died. Stopping a healthy
         # pynput listener discards events it has already buffered, and stopping
         # a healthy keyboard listener also drops its held-key state, so
         # restarting everything because a gamepad disconnected could lose input
         # that has not been polled yet.
+        replaced = []
         if mouse_died:
-            self.mouseListener.stop()
+            replaced.append(self.mouseListener)
+        if keyboard_died:
+            replaced.append(self.keyboardListener)
+        if rescan_gamepad:
+            replaced.append(self.gamepadListener)
+        for listener in replaced:
+            listener.stop()
+        # A replaced listener may still hold input recorded before it stopped
+        # (e.g. a button pressed just before the controller disconnected, or on
+        # a second controller whose reader was still running). stop() leaves
+        # the event flag intact, so read it after stopping, when no more input
+        # can arrive, and before the poll moves on to the new listeners.
+        had_pending_input = any(listener.has_new_event() for listener in replaced)
+        if mouse_died:
             self._start_mouse_listener()
         if keyboard_died:
-            self.keyboardListener.stop()
             self._start_keyboard_listener()
         if rescan_gamepad:
-            self.gamepadListener.stop()
             self._start_gamepad_listener()
         # A dead keyboard or mouse listener couldn't record input, so its
         # stale last_activity would report a false AFK gap: reset it. A
