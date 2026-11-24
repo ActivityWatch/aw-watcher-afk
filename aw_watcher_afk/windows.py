@@ -5,6 +5,10 @@ from ctypes.wintypes import BOOL, DWORD, UINT
 
 ULONGLONG = c_ulonglong
 
+# How far dwTime may lead the sampled tick and still count as fresh input.
+# The observed lead is one ~15.6 ms timer tick; a minute leaves ample margin.
+_MAX_INPUT_AHEAD_MS = 60_000
+
 
 class LastInputInfo(Structure):
     _fields_ = [("cbSize", UINT), ("dwTime", DWORD)]
@@ -45,10 +49,13 @@ def seconds_since_last_input() -> float:
     # while GetTickCount64 is 64-bit. Subtracting modulo 2^32 handles the wrap.
     diff_ms = ((tick_count & 0xFFFFFFFF) - last_input_tick) & 0xFFFFFFFF
 
-    # A difference in the upper half of the range means dwTime is slightly
-    # ahead of the tick, not ~49.7 days old. Treating it as a wrap would emit
-    # an AFK event starting weeks in the past, so report fresh input instead.
-    if diff_ms >= 0x80000000:
+    # A difference just below 2^32 means dwTime is slightly ahead of the tick,
+    # not ~49.7 days old. Treating it as a wrap would emit an AFK event starting
+    # weeks in the past, so report fresh input instead. Only a small margin is
+    # treated this way: longer idle periods (even past 2^31 ms, ~24.9 days) are
+    # real. dwTime is 32 bits, so idle times within the margin of 2^32 ms are
+    # indistinguishable from input ahead of the tick anyway.
+    if 0x100000000 - diff_ms <= _MAX_INPUT_AHEAD_MS:
         return 0.0
 
     return diff_ms / 1000
