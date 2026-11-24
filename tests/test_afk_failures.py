@@ -80,3 +80,40 @@ class HeartbeatFailureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WindowsIdleTimeTests(unittest.TestCase):
+    def idle(self, tick, last_input):
+        with patch.object(windows, "_getTickCount64", return_value=tick):
+            with patch.object(windows, "_getLastInputTick", return_value=last_input):
+                return windows.seconds_since_last_input()
+
+    def test_normal_idle(self):
+        self.assertEqual(self.idle(5000, 3000), 2.0)
+
+    def test_tick_wraparound(self):
+        self.assertAlmostEqual(self.idle(2**32 + 25, 2**32 - 25), 0.05)
+
+    def test_last_input_ahead_of_tick_is_fresh_input_not_49_days(self):
+        # Input landing on the next ~15.6 ms tick between the two reads puts
+        # dwTime 16 ms ahead of the sampled tick.
+        self.assertEqual(self.idle(1_000_000, 1_000_016), 0.0)
+
+    def test_last_input_ahead_of_tick_across_wraparound(self):
+        self.assertEqual(self.idle(2**32 - 5, 10), 0.0)
+
+    def test_last_input_read_before_tick(self):
+        calls = []
+
+        def last_input():
+            calls.append("last")
+            return 0
+
+        def tick():
+            calls.append("tick")
+            return 0
+
+        with patch.object(windows, "_getLastInputTick", side_effect=last_input):
+            with patch.object(windows, "_getTickCount64", side_effect=tick):
+                windows.seconds_since_last_input()
+        self.assertEqual(calls, ["last", "tick"])
