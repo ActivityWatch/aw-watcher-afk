@@ -9,6 +9,8 @@ Written with ``unittest`` so the existing ``make test`` discovery pattern
 (``test_afk_*.py``) picks it up in CI.
 """
 
+import sys
+import time
 import unittest
 from unittest.mock import patch
 
@@ -104,6 +106,21 @@ class UnixIdleClockTests(unittest.TestCase):
         self.assertEqual(self.mouse.call_count, 1)
         self.assertEqual(self.kb.call_count, 1)
         self.assertEqual(self.gamepad.call_count, 1)
+
+
+class ElapsedClockChoiceTests(unittest.TestCase):
+    @unittest.skipUnless(
+        sys.platform.startswith("linux"), "CLOCK_BOOTTIME is Linux-only"
+    )
+    def test_elapsed_uses_boottime_on_linux(self):
+        # CLOCK_BOOTTIME keeps counting during suspend, so a resume without
+        # input still reports the time away. CLOCK_MONOTONIC would reset idle
+        # time on every resume and mark an away user as active.
+        with patch(
+            "aw_watcher_afk.unix.time.clock_gettime", return_value=123.0
+        ) as clock_gettime:
+            self.assertEqual(unix._elapsed(), 123.0)
+        clock_gettime.assert_called_once_with(time.CLOCK_BOOTTIME)
 
 
 if __name__ == "__main__":
