@@ -119,6 +119,7 @@ class AFKWatcher:
         # Last reported audio-playback state (None until first observed).
         playback_reported: Optional[bool] = None
         locked = False
+        previous_poll: Optional[datetime] = None
         while True:
             try:
                 if system in ["Darwin", "Linux"] and os.getppid() != self._initial_ppid:
@@ -154,6 +155,17 @@ class AFKWatcher:
                     last_input = not_afk_start + td1ms
                 logger.debug(f"Seconds since last input: {seconds_since_input}")
                 logger.debug(f"Screen locked: {locked}")
+
+                # A gap longer than the heartbeat pulsetime (e.g. suspend) was
+                # never observed, so a mic spell must not carry across it.
+                unobserved = self.settings.timeout + self.settings.poll_time
+                if (
+                    previous_poll is not None
+                    and (now - previous_poll).total_seconds() > unobserved
+                ):
+                    mic_active_since = None
+                    present_anchor = None
+                previous_poll = now
 
                 # Microphone capture (e.g. a call) is a strong signal that the
                 # user is present even without keyboard/mouse input, so it can

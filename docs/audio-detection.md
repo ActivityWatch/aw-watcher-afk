@@ -80,6 +80,9 @@ Equivalent flags: `--detect-mic`, `--detect-audio-playback`.
   active reading refreshes the grace period, and recovery after expiry starts
   a new presence spell. Thus a transient failure need not interrupt a call,
   but a permanently broken `pactl` cannot imply presence indefinitely.
+- A gap between polls longer than `timeout` + `poll_time` (e.g. suspend) ends
+  the mic spell. If the stream is still open on wake, a new spell starts there,
+  so the unobserved interval is never recorded as present.
 - Mic-kept presence ends where the call was last seen. A later AFK period
   starts there, not at the (earlier) last input, so the two never overlap.
   Without the mic, not-AFK heartbeats stay zero-length at the last input.

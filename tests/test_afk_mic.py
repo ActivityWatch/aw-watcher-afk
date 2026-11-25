@@ -105,11 +105,14 @@ class SteppingDatetime(datetime):
     """datetime whose now() starts at NOW and advances one poll per call."""
 
     calls = 0
+    # Extra seconds that pass (e.g. suspend) before the poll with this index.
+    suspends: dict = {}
 
     @classmethod
     def now(cls, tz=None):
         cls.calls += 1
-        return NOW + timedelta(seconds=POLL_TIME * (cls.calls - 1))
+        suspended = sum(s for i, s in cls.suspends.items() if i < cls.calls)
+        return NOW + timedelta(seconds=POLL_TIME * (cls.calls - 1) + suspended)
 
 
 class MicLoopTests(unittest.TestCase):
@@ -124,12 +127,15 @@ class MicLoopTests(unittest.TestCase):
         watcher._initial_ppid = os.getppid()
         return watcher
 
-    def run_loop(self, samples, detect_mic=True, detect_audio_playback=False):
+    def run_loop(
+        self, samples, detect_mic=True, detect_audio_playback=False, suspends=None
+    ):
         """Drive heartbeat_loop over (seconds_since_input, locked, mic, playing).
 
         Playing is only consumed when detect_audio_playback is enabled.
         """
         SteppingDatetime.calls = 0
+        SteppingDatetime.suspends = suspends or {}
         watcher = self.make_watcher(
             detect_mic=detect_mic, detect_audio_playback=detect_audio_playback
         )
@@ -369,6 +375,47 @@ class MicLoopTests(unittest.TestCase):
             calls[5].kwargs["timestamp"],
             NOW + timedelta(seconds=10),
         )
+
+    def test_mic_open_across_suspend_does_not_cover_it(self):
+        # The stream survives a suspend and no wake input resets idle time.
+        # Nobody observed that hour, so presence must restart on wake.
+        calls = self.run_loop(
+            [
+                (1.0, False, True, False),
+                (6.0, False, True, False),
+                (3611.0, False, True, False),  # t=3610: first poll after wake
+                (3616.0, False, True, False),
+            ],
+            suspends={2: 3600},
+        )
+
+        wake = NOW + timedelta(seconds=3610)
+        self.assertEqual([c.args[0] for c in calls], [False] * 4)
+        self.assertEqual(calls[2].kwargs["timestamp"], wake)
+        self.assertEqual(calls[2].kwargs["duration"], 0)
+        self.assertEqual(calls[3].kwargs["timestamp"], wake)
+        self.assertEqual(calls[3].kwargs["duration"], 5)
+
+    def test_afk_after_suspend_covers_it_despite_earlier_mic(self):
+        # Call ended or screen locked on wake: AFK starts at the last observed
+        # presence, as it does without the mic, not at wake time.
+        for locked, mic in ((False, False), (False, None), (True, True)):
+            with self.subTest(locked=locked, mic=mic):
+                calls = self.run_loop(
+                    [
+                        (1.0, False, True, False),
+                        (6.0, False, True, False),
+                        (3611.0, locked, mic, False),
+                    ],
+                    suspends={2: 3600},
+                )
+
+                self.assertTrue(calls[-1].args[0])
+                self.assertEqual(
+                    calls[-2].kwargs["timestamp"], NOW + timedelta(seconds=5)
+                )
+                self.assertEqual(calls[-1].kwargs["duration"], 3605)
+                self.assert_events_do_not_overlap(calls)
 
     def assert_events_do_not_overlap(self, calls):
         # Replay the pings through aw-server's heartbeat merge and check that
