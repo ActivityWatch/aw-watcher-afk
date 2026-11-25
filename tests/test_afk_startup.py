@@ -14,6 +14,46 @@ import requests
 from aw_watcher_afk.afk import AFKWatcher
 
 
+class LegacyArgsTests(unittest.TestCase):
+    def test_audio_options_fall_back_to_config_for_legacy_args(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled):
+                config = {"timeout": 180, "poll_time": 5}
+                if enabled:
+                    config.update(detect_mic=True, detect_audio_playback=True)
+                with patch("aw_watcher_afk.afk.load_config", return_value=config), patch(
+                    "aw_watcher_afk.afk.ActivityWatchClient"
+                ):
+                    watcher = AFKWatcher(
+                        SimpleNamespace(host=None, port=None, timeout=None, poll_time=None)
+                    )
+                self.assertIs(watcher.settings.detect_mic, enabled)
+                self.assertIs(watcher.settings.detect_audio_playback, enabled)
+
+    def test_explicit_audio_options_override_config(self):
+        with patch(
+            "aw_watcher_afk.afk.load_config",
+            return_value={
+                "timeout": 180,
+                "poll_time": 5,
+                "detect_mic": True,
+                "detect_audio_playback": True,
+            },
+        ), patch("aw_watcher_afk.afk.ActivityWatchClient"):
+            watcher = AFKWatcher(
+                SimpleNamespace(
+                    host=None,
+                    port=None,
+                    timeout=None,
+                    poll_time=None,
+                    detect_mic=False,
+                    detect_audio_playback=False,
+                )
+            )
+        self.assertFalse(watcher.settings.detect_mic)
+        self.assertFalse(watcher.settings.detect_audio_playback)
+
+
 class OfflineStartupTests(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
@@ -55,7 +95,14 @@ class OfflineStartupTests(unittest.TestCase):
             reservation.bind(("127.0.0.1", 0))
             port = reservation.getsockname()[1]
         self.watcher = AFKWatcher(
-            SimpleNamespace(host="127.0.0.1", port=port, timeout=10, poll_time=0.01),
+            SimpleNamespace(
+                host="127.0.0.1",
+                port=port,
+                timeout=10,
+                poll_time=0.01,
+                detect_mic=False,
+                detect_audio_playback=False,
+            ),
             testing=True,
         )
         self.queue = self.watcher.client.request_queue
