@@ -66,8 +66,8 @@ class AFKWatcher:
             load_config(testing),
             timeout=args.timeout,
             poll_time=args.poll_time,
-            detect_mic=args.detect_mic,
-            detect_audio_playback=args.detect_audio_playback,
+            detect_mic=getattr(args, "detect_mic", None),
+            detect_audio_playback=getattr(args, "detect_audio_playback", None),
         )
 
         self.client = ActivityWatchClient(
