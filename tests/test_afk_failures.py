@@ -78,5 +78,60 @@ class HeartbeatFailureTests(unittest.TestCase):
             self.run_loop(watcher, [OSError("listener failed")], system_name="Linux")
 
 
+class WindowsIdleTimeTests(unittest.TestCase):
+    def idle(self, tick, last_input):
+        with patch.object(windows, "_getTickCount64", return_value=tick):
+            with patch.object(windows, "_getLastInputTick", return_value=last_input):
+                return windows.seconds_since_last_input()
+
+    def test_normal_idle(self):
+        self.assertEqual(self.idle(5000, 3000), 2.0)
+
+    def test_tick_wraparound(self):
+        self.assertAlmostEqual(self.idle(2**32 + 25, 2**32 - 25), 0.05)
+
+    def test_last_input_ahead_of_tick_is_fresh_input_not_49_days(self):
+        # Input landing on the next ~15.6 ms tick between the two reads puts
+        # dwTime 16 ms ahead of the sampled tick.
+        self.assertEqual(self.idle(1_000_000, 1_000_016), 0.0)
+
+    def test_last_input_ahead_of_tick_across_wraparound(self):
+        # GetTickCount64 is just below its second 2^32 boundary while the
+        # 32-bit dwTime has already wrapped: input is 15 ms ahead, not 49.7 days old.
+        self.assertEqual(self.idle(2 * 2**32 - 5, 10), 0.0)
+
+    def test_idle_longer_than_half_the_dword_range_is_reported(self):
+        # ~24.9 days without input lands in the upper half of the 32-bit range;
+        # it is real idle time and must not be mistaken for input ahead of the tick.
+        last_input = 1_000_000
+        idle_ms = 2**31 + 60_000
+        self.assertAlmostEqual(
+            self.idle(last_input + idle_ms, last_input), idle_ms / 1000
+        )
+
+    def test_idle_longer_than_half_the_dword_range_across_wraparound(self):
+        last_input = 2**32 - 1000
+        idle_ms = 3 * 2**30
+        self.assertAlmostEqual(
+            self.idle(last_input + idle_ms, last_input), idle_ms / 1000
+        )
+
+    def test_last_input_read_before_tick(self):
+        calls = []
+
+        def last_input():
+            calls.append("last")
+            return 0
+
+        def tick():
+            calls.append("tick")
+            return 0
+
+        with patch.object(windows, "_getLastInputTick", side_effect=last_input):
+            with patch.object(windows, "_getTickCount64", side_effect=tick):
+                windows.seconds_since_last_input()
+        self.assertEqual(calls, ["last", "tick"])
+
+
 if __name__ == "__main__":
     unittest.main()
