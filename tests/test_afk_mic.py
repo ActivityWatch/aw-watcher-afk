@@ -239,6 +239,31 @@ class MicLoopTests(unittest.TestCase):
         )
         self.assert_events_do_not_overlap(calls)
 
+    def test_lock_after_mic_presence_ends_uses_last_input(self):
+        for stopped in (False, None):
+            with self.subTest(mic_reading=stopped):
+                samples = [
+                    (200.0, False, False, False),  # t=0: AFK
+                    (205.0, False, True, False),   # t=5: call resumes presence
+                ] + [
+                    (0.0, False, stopped, False)  # work through stop/grace expiry
+                    for _ in range(37)
+                ] + [
+                    (POLL_TIME * k, False, stopped, False)
+                    for k in range(1, 36)
+                ] + [(180.0, True, None, False)]  # auto-lock at idle timeout
+                calls = self.run_loop(samples)
+
+                # Last HID input was at t=190. The old call must not extend
+                # presence across the subsequent 180 seconds of idle time.
+                self.assertFalse(calls[-2].args[0])
+                self.assertTrue(calls[-1].args[0])
+                self.assertEqual(
+                    calls[-2].kwargs["timestamp"], NOW + timedelta(seconds=190)
+                )
+                self.assertEqual(calls[-1].kwargs["duration"], 180)
+                self.assert_events_do_not_overlap(calls)
+
     def test_lock_overrides_mic(self):
         # Locked while the mic is in use -> stays AFK; resumes on unlock.
         calls = self.run_loop([(90.0, True, True, False), (95.0, True, True, False)])

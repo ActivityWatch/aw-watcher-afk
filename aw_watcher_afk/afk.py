@@ -258,12 +258,12 @@ class AFKWatcher:
                     # spell; the mic anchor must not survive it, or a later
                     # unlock would back-date presence into the AFK interval.
                     logger.info("Became AFK" + (" (screen locked)" if locked else ""))
-                    # When the lock is the trigger and HID idle is still below
-                    # the timeout, AFK starts at lock detection, not last_input,
-                    # so pre-lock (unlocked) idle time isn't counted as AFK.
+                    # A lock interrupts recent input or an ongoing mic spell
+                    # at detection time. A completed call's heartbeat anchor
+                    # is not evidence of presence during later idle time.
                     lock_triggered = locked and (
                         seconds_since_input < self.settings.timeout
-                        or present_anchor is not None
+                        or mic_active_since is not None
                     )
                     if lock_triggered:
                         afk_start = now
